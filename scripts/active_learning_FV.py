@@ -23,16 +23,16 @@ if __name__ == '__main__':
     # set arguments for active learning manually below
     # on a longer term this could be added to the TAP args
     # training arguments are read from args
-    active_learning_steps = 3
+    active_learning_steps = 20
     data_selection_criterion = 'ensemble_variance'  # others are 'ensemble_variance'
     data_selection_fixed_amount = None  # number of training points you want to add, if None amount adjusts
     data_selection_variable_amount = 0.1  # fraction of the training size to be added
 
-    path_experimental = '/home/fhvermei/Software/MIT2/chemprop/chemprop/data_FV/qm9_experimental.csv'  # path to data that can be added
+    path_experimental = '/home/oscarwu/research/project/active_solv/experimental_initial.csv'  # path to data that can be added
     fixed_experimental_size = None  # experimental data set size, if None amount adjusts with data added
     variable_experimental_size_factor = 100.  # x times the size of the data to be added
 
-    path_test = '/home/fhvermei/Software/MIT2/chemprop/chemprop/data_FV/qm9_test.csv'  # path to external test set
+    path_test = '/home/oscarwu/research/project/active_solv/test.csv'  # path to external test set
 
     train_args = TrainArgs().parse_args()
     path_training = train_args.data_path
@@ -58,10 +58,12 @@ if __name__ == '__main__':
         size_training = len(df_training.index)
         size_data_selection = int(data_selection_fixed_amount) if data_selection_fixed_amount \
             else round(size_training * data_selection_variable_amount)
+            
         if not fixed_experimental_size:
             size_experimental = int(variable_experimental_size_factor * size_data_selection)
         else:
             size_experimental = int(fixed_experimental_size)
+
         df_experimental = df_experimental_all.sample(n=size_experimental, random_state=al_run)
         # safe the experimental file because chemprop will only read a csv file
         df_experimental.to_csv(os.path.join(path_results, f'temp_in.csv'), index=False)
@@ -118,7 +120,7 @@ if __name__ == '__main__':
         df_experimental_all = pd.concat([df_experimental_all, df_selected, df_selected], join='inner').drop_duplicates(keep=False)
         df_experimental_all_results = pd.concat([df_experimental_all_results, df_selected])
         print('run completed')
-        if al_run % 10 == 0:
+        if al_run % 2 == 0:
             df_experimental_all_results_temp = pd.concat([df_experimental_all_results, df_experimental_all])
             with open(os.path.join(path_results, f'experimental_results.pickle'), 'wb') as f:
                 pickle.dump(df_experimental_all_results_temp, f)

@@ -8,6 +8,56 @@ import numpy as np
 
 from chemprop.rdkit import make_mol
 
+ELECTRONEGATIVITY = {
+    1: 2.2,
+    3: 0.98,
+    4: 1.57,
+    5: 2.04,
+    6: 2.55,
+    7: 3.04,
+    8: 3.44,
+    9: 3.98,
+    11: 0.93,
+    12: 1.31,
+    13: 1.61,
+    14: 1.9,
+    15: 2.19,
+    16: 2.58,
+    17: 3.16,
+    19: 0.82,
+    20: 1,
+    21: 1.36,
+    22: 1.54,
+    23: 1.63,
+    24: 1.66,
+    25: 1.55,
+    26: 1.83,
+    27: 1.88,
+    28: 1.91,
+    29: 1.9,
+    30: 1.65,
+    31: 1.81,
+    32: 2.01,
+    33: 2.18,
+    34: 2.55,
+    35: 2.96,
+    36: 3,
+    37: 0.82,
+    38: 0.95,
+    39: 1.22,
+    40: 1.33,
+    41: 1.6,
+    42: 2.16,
+    43: 1.9,
+    44: 2.2,
+    45: 2.28,
+    46: 2.2,
+    47: 1.93,
+    48: 1.69,
+    49: 1.78,
+    50: 1.96
+}
+
 class Featurization_parameters:
     """
     A class holding molecule featurization parameters as attributes.
@@ -17,11 +67,7 @@ class Featurization_parameters:
         # Atom feature sizes
         self.MAX_ATOMIC_NUM = 100
         self.ATOM_FEATURES = {
-            'atomic_num': list(range(self.MAX_ATOMIC_NUM)),
-            'degree': [0, 1, 2, 3, 4, 5],
-            'formal_charge': [-1, -2, 1, 2, 0],
-            'chiral_tag': [0, 1, 2, 3],
-            'num_Hs': [0, 1, 2, 3, 4],
+            'atomic_num': [1, 5, 6, 7, 8, 9, 14, 15, 16, 17, 35, 53, 0],
             'hybridization': [
                 Chem.rdchem.HybridizationType.SP,
                 Chem.rdchem.HybridizationType.SP2,
@@ -29,6 +75,8 @@ class Featurization_parameters:
                 Chem.rdchem.HybridizationType.SP3D,
                 Chem.rdchem.HybridizationType.SP3D2
             ],
+            'H_bond_donor': [0, 1, 2, 3],   #1-3 for N, O and F, 0 if none
+            'H_bond_acceptor': [0, 1, 2, 3], #1-3 for N, O and F, 0 if none
         }
 
         # Distance feature sizes
@@ -201,7 +249,45 @@ def onek_encoding_unk(value: int, choices: List[int]) -> List[int]:
 
     return encoding
 
+PERIODIC_TABLE = Chem.GetPeriodicTable()
 
+def get_total_bond_order(atom):
+    return sum([b.GetBondTypeAsDouble() for b in atom.GetBonds() if b.GetOtherAtom(atom).GetAtomicNum() != 1])
+
+def get_lone_pair(atom):
+    """
+    Helper function
+    Returns the lone pair of an atom
+    """
+    atomic_num = atom.GetAtomicNum()
+    if atomic_num == 1:
+        return 0
+    order = get_total_bond_order(atom)
+    
+    print(f"order {order}")
+    print(f"imp h {atom.GetNumImplicitHs()}")
+    return (PERIODIC_TABLE.GetNOuterElecs(atomic_num) - atom.GetNumRadicalElectrons() - atom.GetFormalCharge() - int(order) - atom.GetTotalNumHs()) / 2
+
+def is_h_bond_donor(atom: Chem.rdchem.Atom) -> int:
+    if atom.GetSymbol() == "N" and atom.GetTotalNumHs() > 0:
+        return 1
+    elif atom.GetSymbol() == "O" and atom.GetTotalNumHs() > 0:
+        return 2
+    elif atom.GetSymbol() == "F" and atom.GetTotalNumHs() > 0:
+        return 3
+    else:
+        return 0
+    
+def is_h_bond_acceptor(atom: Chem.rdchem.Atom) -> int:
+    if atom.GetSymbol() == "N" and get_lone_pair(atom) > 0:
+        return 1
+    elif atom.GetSymbol() == "O" and get_lone_pair(atom) > 0:
+        return 2
+    elif atom.GetSymbol() == "F" and get_lone_pair(atom) > 0:
+        return 3
+    else:
+        return 0
+    
 def atom_features(atom: Chem.rdchem.Atom, functional_groups: List[int] = None) -> List[Union[bool, int, float]]:
     """
     Builds a feature vector for an atom.
@@ -213,13 +299,18 @@ def atom_features(atom: Chem.rdchem.Atom, functional_groups: List[int] = None) -
     if atom is None:
         features = [0] * PARAMS.ATOM_FDIM
     else:
-        features = onek_encoding_unk(atom.GetAtomicNum() - 1, PARAMS.ATOM_FEATURES['atomic_num']) + \
-            onek_encoding_unk(atom.GetTotalDegree(), PARAMS.ATOM_FEATURES['degree']) + \
-            onek_encoding_unk(atom.GetFormalCharge(), PARAMS.ATOM_FEATURES['formal_charge']) + \
-            onek_encoding_unk(int(atom.GetChiralTag()), PARAMS.ATOM_FEATURES['chiral_tag']) + \
-            onek_encoding_unk(int(atom.GetTotalNumHs()), PARAMS.ATOM_FEATURES['num_Hs']) + \
+        features = onek_encoding_unk(atom.GetAtomicNum() if atom.GetAtomicNum() in PARAMS.ATOM_FEATURES['atomic_num'] else 0, PARAMS.ATOM_FEATURES['atomic_num']) + \
             onek_encoding_unk(int(atom.GetHybridization()), PARAMS.ATOM_FEATURES['hybridization']) + \
+            onek_encoding_unk(is_h_bond_donor(atom), PARAMS.ATOM_FEATURES['H_bond_donor']) + \
+            onek_encoding_unk(is_h_bond_acceptor(atom), PARAMS.ATOM_FEATURES['H_bond_acceptor']) + \
             [1 if atom.GetIsAromatic() else 0] + \
+            [atom.GetNumRadicalElectrons()] + \
+            [atom.GetTotalDegree()] + \
+            [atom.GetFormalCharge()] + \
+            [atom.GetTotalNumHs()] + \
+            [get_lone_pair(atom)] + \
+            [min(atom.GetOwningMol().GetRingInfo().AtomRingSizes(atom.GetIdx()))] + \
+            [ELECTRONEGATIVITY[atom.GetAtomicNum()]]  + \
             [atom.GetMass() * 0.01]  # scaled to about the same range as other features
         if functional_groups is not None:
             features += functional_groups
