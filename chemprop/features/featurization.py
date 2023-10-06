@@ -55,7 +55,8 @@ ELECTRONEGATIVITY = {
     47: 1.93,
     48: 1.69,
     49: 1.78,
-    50: 1.96
+    50: 1.96,
+    53: 2.66,
 }
 
 class Featurization_parameters:
@@ -86,7 +87,7 @@ class Featurization_parameters:
         self.THREE_D_DISTANCE_BINS = list(range(0, self.THREE_D_DISTANCE_MAX + 1, self.THREE_D_DISTANCE_STEP))
 
         # len(choices) + 1 to include room for uncommon values; + 2 at end for IsAromatic and mass
-        self.ATOM_FDIM = sum(len(choices) + 1 for choices in self.ATOM_FEATURES.values()) + 2
+        self.ATOM_FDIM = sum(len(choices) + 1 for choices in self.ATOM_FEATURES.values()) + 2 + 7
         self.EXTRA_ATOM_FDIM = 0
         self.BOND_FDIM = 14
         self.EXTRA_BOND_FDIM = 0
@@ -264,8 +265,6 @@ def get_lone_pair(atom):
         return 0
     order = get_total_bond_order(atom)
     
-    print(f"order {order}")
-    print(f"imp h {atom.GetNumImplicitHs()}")
     return (PERIODIC_TABLE.GetNOuterElecs(atomic_num) - atom.GetNumRadicalElectrons() - atom.GetFormalCharge() - int(order) - atom.GetTotalNumHs()) / 2
 
 def is_h_bond_donor(atom: Chem.rdchem.Atom) -> int:
@@ -309,7 +308,7 @@ def atom_features(atom: Chem.rdchem.Atom, functional_groups: List[int] = None) -
             [atom.GetFormalCharge()] + \
             [atom.GetTotalNumHs()] + \
             [get_lone_pair(atom)] + \
-            [min(atom.GetOwningMol().GetRingInfo().AtomRingSizes(atom.GetIdx()))] + \
+            [min(atom.GetOwningMol().GetRingInfo().AtomRingSizes(atom.GetIdx())) if atom.IsInRing() else 0] + \
             [ELECTRONEGATIVITY[atom.GetAtomicNum()]]  + \
             [atom.GetMass() * 0.01]  # scaled to about the same range as other features
         if functional_groups is not None:
