@@ -11,12 +11,43 @@ from chemprop.train import cross_validate, run_training, make_predictions
 def select_data(df, criterion, size):
     if criterion == 'random':
         df_selected = df.sample(n=size, random_state=0)
+        return df_selected
     elif criterion == 'ensemble_variance':
         df_selected = df.sort_values(by='unc', ascending=False)
         df_selected = df_selected.head(n=size)
+        return df_selected
+    elif criterion == 'cluster_equal_distribution':
+        if not 'cluster' in df.columns:
+            raise ValueError('The experimental data needs a column called cluster')
+        clusters = df['cluster'].unique()
+        residual = size%len(clusters)
+        df_selected = pd.DataFrame()
+        for c in clusters:
+            df_temp = df[df.cluster == c]
+            df_temp = df_temp.sort_values(by='unc', ascending=False)
+            number = int(size/len(clusters))
+            number = number + 1 if residual>0 else number
+            residual -= 1
+            df_temp = df_temp.head(n=number)
+            df_selected = pd.concat([df_selected, df_temp])
+        return df_selected
+    elif criterion == 'cluster_weighted_ensemble_variance':
+        if not 'cluster' in df.columns:
+            raise ValueError('The experimental data needs a column called cluster')
+        clusters = df['cluster'].unique()
+        df = df.sort_values(by='unc', ascending=False)
+        df = df.groupby('cluster').head(n=size).reset_index(drop=True)
+        sum_factors = df.unc.sum()
+        df_selected = pd.DataFrame()
+        for c in clusters:
+            df_temp = df[df.cluster == c]
+            c_factor = np.sum(df_temp.unc.values)
+            size_to_add = round(c_factor/sum_factors*size)
+            df_temp = df_temp.head(n=size_to_add)
+            df_selected = pd.concat([df_selected, df_temp])
+        return df_selected
     else:
         return ValueError(f'criterion {criterion} not in defined list')
-    return df_selected
 
 
 if __name__ == '__main__':
@@ -24,15 +55,16 @@ if __name__ == '__main__':
     # on a longer term this could be added to the TAP args
     # training arguments are read from args
     active_learning_steps = 20
-    data_selection_criterion = 'ensemble_variance'  # others are 'ensemble_variance'
+    data_selection_criterion = 'cluster_weighted_ensemble_variance'
+    # from the list ['random', 'ensemble_variance', 'cluster_equal_distribution', 'cluster_weighted_ensemble_variance']
     data_selection_fixed_amount = None  # number of training points you want to add, if None amount adjusts
     data_selection_variable_amount = 0.1  # fraction of the training size to be added
 
-    path_experimental = '/home/oscarwu/research/project/active_solv/experimental_initial.csv'  # path to data that can be added
+    path_experimental = '/home/fhvermei/Software/MIT2/chemprop/chemprop/data_FV/qm9_experimental.csv'  # path to data that can be added
     fixed_experimental_size = None  # experimental data set size, if None amount adjusts with data added
     variable_experimental_size_factor = 100.  # x times the size of the data to be added
 
-    path_test = '/home/oscarwu/research/project/active_solv/test.csv'  # path to external test set
+    path_test = '/home/fhvermei/Software/MIT2/chemprop/chemprop/data_FV/qm9_test.csv'  # path to external test set
 
     train_args = TrainArgs().parse_args()
     path_training = train_args.data_path
@@ -48,9 +80,10 @@ if __name__ == '__main__':
 
     # set some args
     train_args.split_sizes = [0.9, 0.1, 0.0]  # we have a separate test set
-    #train_args.ensemble_size = 2
-    #train_args.num_folds = 2
-    #train_args.epochs = 10
+
+    if 'cluster' in data_selection_criterion:
+        if not 'cluster' in df_experimental_all.columns:
+            raise ValueError('The experimental data needs a column called cluster')
 
     for al_run in range(active_learning_steps):
         # make training and experimental dfs and select size of data to be added
