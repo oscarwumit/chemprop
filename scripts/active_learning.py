@@ -163,27 +163,25 @@ def run_active_learning(args: ActiveLearningArgs):
             for model_idx in range(args.ensemble_size):
                 df_temp = pd.DataFrame(df_fp, columns=[c for c in df_fp.columns if
                                                        f'mol_{args.fingerprint_idx}_model_{model_idx}' in c])
-                if args.use_pca_for_clustering:
-                    pca = PCA(n_components=args.pca_number_of_components)
-                    components = pca.fit_transform(df_temp)
-                    for i in range(args.pca_number_of_components):
-                        df_fp[f'pc_{i + 1}_{model_idx}'] = components[:, i]
-                    for_clustering = components
-                else:
-                    for_clustering = df_temp
+
+                pca = PCA(n_components=args.pca_number_of_components)
+                components = pca.fit_transform(df_temp)
+                for i in range(args.pca_number_of_components):
+                    df_fp[f'pc_{i + 1}_{model_idx}'] = components[:, i]
+                for_clustering = components
+
                 kmeanModel = KMeans(n_clusters=args.number_of_clusters, random_state=0, n_init='auto').fit(for_clustering)
                 df_fp[f'cluster_{model_idx}'] = kmeanModel.labels_
 
                 # apply clustering
                 df_temp_exp = pd.DataFrame(df_fp_exp, columns=[c for c in df_fp_exp.columns if
                                                                f'mol_{args.fingerprint_idx}_model_{model_idx}' in c])
-                if args.use_pca_for_clustering:
-                    components = pca.transform(df_temp_exp)
-                    for i in range(args.pca_number_of_components):
-                        df_fp_exp[f'pc_{i + 1}_{model_idx}'] = components[:, i]
-                    for_clustering = components
-                else:
-                    for_clustering = df_temp
+
+                components = pca.transform(df_temp_exp)
+                for i in range(args.pca_number_of_components):
+                    df_fp_exp[f'pc_{i + 1}_{model_idx}'] = components[:, i]
+                for_clustering = components
+
                 clustering = kmeanModel.predict(for_clustering)
                 df_fp_exp[f'cluster_{model_idx}'] = clustering
                 df_fp_exp[f'min_distance_{model_idx}'] = np.min(
@@ -193,8 +191,6 @@ def run_active_learning(args: ActiveLearningArgs):
                                                                df_experimental[f'min_distance_{model_idx}'].max())
             columns = [f'norm_min_distance_{model_idx}' for model_idx in range(args.ensemble_size)]
             df_experimental[f'avg_norm_min_distance'] = df_experimental[columns].sum(axis=1)
-        # df_experimental.to_csv(os.path.join(path_results, f'experimental_{al_run}.csv'), index=False)
-        # now experimental sets are not saved, only the data selected from these sets
 
         # predict the test set
         if args.path_test is not None:
@@ -215,7 +211,7 @@ def run_active_learning(args: ActiveLearningArgs):
         df_experimental_all = pd.concat([df_experimental_all, df_selected, df_selected], join='inner').drop_duplicates(keep=False)
         df_experimental_all_results = pd.concat([df_experimental_all_results, df_selected])
         print('run completed')
-        if al_run % (args.active_learning_steps/10) == 0:
+        if (al_run+1) % (args.active_learning_steps/5) == 0:
             df_experimental_all_results_temp = pd.concat([df_experimental_all_results, df_experimental_all])
             with open(os.path.join(path_results, f'experimental_results.pickle'), 'wb') as f:
                 pickle.dump(df_experimental_all_results_temp, f)
@@ -223,15 +219,6 @@ def run_active_learning(args: ActiveLearningArgs):
                 clustering_results[al_run] = (df_fp, df_fp_exp)
                 with open(os.path.join(path_results, f'clustering_results.pickle'), 'wb') as f:
                     pickle.dump(clustering_results, f)
-
-    df_experimental_all_results = pd.concat([df_experimental_all_results, df_experimental_all])
-    with open(os.path.join(path_results, f'experimental_results.pickle'), 'wb') as f:
-        pickle.dump(df_experimental_all_results, f)
-
-    if data_selection_criterion == 'on_the_fly_clustering':
-        clustering_results[al_run] = (df_fp, df_fp_exp)
-        with open(os.path.join(path_results, f'clustering_results.pickle'), 'wb') as f:
-            pickle.dump(clustering_results, f)
 
 
 def active_learning() -> None:
