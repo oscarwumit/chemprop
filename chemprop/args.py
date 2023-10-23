@@ -1027,10 +1027,11 @@ class ActiveLearningArgs(TrainArgs):
     """:class:`ActiveLearningArgs` includes :class:`TrainArgs`, 'PredictArgs', 'FingerprintArgs' along with additional arguments used for active learning."""
     active_learning_steps: int = 10
     """Number of steps in the active learning loop"""
-    data_selection_criterion: Literal['random', 'ens_var', 'cluster_equal', 'cluster_weight', 'on_the_fly_clustering'] = 'ens_var'
+    data_selection_criterion: Literal['random', 'ens_var', 'ens_var_scaled', 'cluster_equal', 'cluster_weight', 'on_the_fly_clustering'] = 'ens_var'
     """Criterion to select data"""
     """random: random selection of new data from experimental set"""
     """ens_var: selection based on highest ensemble variance"""
+    """ens_var_scaled: selection based on highest scaled ensemble variance"""
     """cluster_equal: selection based on highest ensemble variance with equal distribution from a priori clustering """
     """cluster_weight: selection based on highest ensemble variance with weighted distribution from a priori clustering based on cluster ensemble variance """
     """on_the_fly_clustering: based on on-the-fly clustering of latent representation"""
