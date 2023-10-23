@@ -3,6 +3,7 @@ import os
 from tempfile import TemporaryDirectory
 import pickle
 from typing import List, Optional
+
 from typing_extensions import Literal
 from packaging import version
 from warnings import warn
@@ -1022,6 +1023,39 @@ class FingerprintArgs(PredictArgs):
     fingerprint_type: Literal['MPN', 'last_FFN'] = 'MPN'
     """Choice of which type of latent fingerprint vector to use. Default is the output of the MPNN, excluding molecular features"""
 
+class ActiveLearningArgs(TrainArgs):
+    """:class:`ActiveLearningArgs` includes :class:`TrainArgs`, 'PredictArgs', 'FingerprintArgs' along with additional arguments used for active learning."""
+    active_learning_steps: int = 10
+    """Number of steps in the active learning loop"""
+    data_selection_criterion: Literal['random', 'ens_var', 'cluster_equal', 'cluster_weight', 'on_the_fly_clustering'] = 'ens_var'
+    """Criterion to select data"""
+    """random: random selection of new data from experimental set"""
+    """ens_var: selection based on highest ensemble variance"""
+    """cluster_equal: selection based on highest ensemble variance with equal distribution from a priori clustering """
+    """cluster_weight: selection based on highest ensemble variance with weighted distribution from a priori clustering based on cluster ensemble variance """
+    """on_the_fly_clustering: based on on-the-fly clustering of latent representation"""
+    fingerprint_idx: int = 0
+    """Idx of MPNN fingerprint used for clustering, only if number_of_molecules>1"""
+    pca_number_of_components: int = 20
+    """Number of PC for on-the-fly clustering"""
+    number_of_clusters: int = 10
+    """Number of clusters for on-the-fly clustering"""
+    data_selection_fixed_amount: int = None
+    """Number of datapoints to be added if a fixed number"""
+    data_selection_variable_amount: float = 0.1
+    """Fraction of training set size to be added"""
+    path_experimental: str
+    """Path to CSV file containing experimental data that can be added."""
+    fixed_experimental_size: int = None
+    """Size of experimental data to be evaluated every active learning run if fixed."""
+    variable_experimental_size_factor: float = 100.
+    """If not fixed, the factor of the experimental data size that is evaluated in every run with respect to the data added"""
+    path_test: str = None
+    """Path to CSV file containing an external test set that is evaluated every active learning run."""
+
+    def process_args(self) -> None:
+        super(ActiveLearningArgs, self).process_args()
+        self.split_sizes = [0.9, 0.1, 0.0]  # external test sets should be used
 
 class HyperoptArgs(TrainArgs):
     """:class:`HyperoptArgs` includes :class:`TrainArgs` along with additional arguments used for optimizing Chemprop hyperparameters."""
