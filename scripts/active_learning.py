@@ -210,7 +210,7 @@ def run_active_learning(args: ActiveLearningArgs):
         df_experimental_all = pd.concat([df_experimental_all, df_selected, df_selected], join='inner').drop_duplicates(keep=False)
         df_experimental_all_results = pd.concat([df_experimental_all_results, df_selected])
         print('run completed')
-        if al_run % 2 == 0:
+        if al_run % (args.active_learning_steps/10) == 0:
             df_experimental_all_results_temp = pd.concat([df_experimental_all_results, df_experimental_all])
             with open(os.path.join(path_results, f'experimental_results.pickle'), 'wb') as f:
                 pickle.dump(df_experimental_all_results_temp, f)
