@@ -56,6 +56,11 @@ def select_data(df, criterion, size):
         df_selected = df.sort_values(by='unc', ascending=False)
         df_selected = df_selected.head(n=size)
         return df_selected
+    elif criterion == 'ens_var_scaled':
+        df['scaled_ensemble_variance'] = df[f'unc'] / (np.abs(df[f'preds']) + np.mean(np.abs(df[f'preds'])))
+        df_selected = df.sort_values(by=f'scaled_ensemble_variance', ascending=False)
+        df_selected = df_selected.head(n=size)
+        return df_selected
     elif criterion == 'cluster_equal':
         if not 'cluster' in df.columns:
             raise ValueError('The experimental data needs a column called cluster')
