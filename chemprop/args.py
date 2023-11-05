@@ -1037,8 +1037,12 @@ class ActiveLearningArgs(TrainArgs):
     """on_the_fly_clustering: based on on-the-fly clustering of latent representation"""
     fingerprint_idx: int = 0
     """Idx of MPNN fingerprint used for clustering, only if number_of_molecules>1"""
-    pca_number_of_components: int = 20
-    """Number of PC for on-the-fly clustering"""
+    use_pca_for_clustering: bool = False
+    """Whether to use PCA for on-the-fly clustering"""
+    pca_number_of_components: int = None
+    """Number of PC for on-the-fly clustering."""
+    pca_fraction_of_variance_explained: float = None
+    """Fraction of explained variance for on-the-fly clustering. Number of PC is selected to explain greater than the specified percentage of variances. 0 < pca_fraction_of_variance_explained < 1."""
     number_of_clusters: int = 10
     """Number of clusters for on-the-fly clustering"""
     data_selection_fixed_amount: int = None
