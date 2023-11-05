@@ -199,7 +199,7 @@ def run_active_learning(args: ActiveLearningArgs):
                         df_fp_exp[f'pc_{i + 1}_{model_idx}'] = components[:, i]
                     for_clustering = components
                 else:
-                    for_clustering = df_temp
+                    for_clustering = df_temp_exp
                 clustering = kmeanModel.predict(for_clustering)
                 df_fp_exp[f'cluster_{model_idx}'] = clustering
                 df_fp_exp[f'min_distance_{model_idx}'] = np.min(
