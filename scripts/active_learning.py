@@ -142,6 +142,8 @@ def run_active_learning(args: ActiveLearningArgs):
         clustering_results = dict()
 
     for al_run in range(active_learning_steps):
+        print(f'Active learning run {al_run} of {active_learning_steps}...')
+        
         size_training = len(df_training.index)
         size_data_selection = int(data_selection_fixed_amount) if data_selection_fixed_amount \
             else round(size_training * data_selection_variable_amount)
@@ -156,10 +158,12 @@ def run_active_learning(args: ActiveLearningArgs):
         df_experimental.to_csv(os.path.join(path_results, f'temp_in.csv'), index=False)
 
         # train the model
+        print('Training model...')
         args.save_dir = os.path.join(path_results, f'models_run_{al_run}')
         cross_validate(args=args, train_func=run_training)
 
         # predict the experimental set
+        print('Predicting experimental set...')
         predict_args = process_predict_args(args, path_results, type='exp')
         preds, unc = make_predictions(args=predict_args, return_uncertainty=True)
         df_experimental[f'preds'] = np.ravel(preds)
@@ -211,6 +215,7 @@ def run_active_learning(args: ActiveLearningArgs):
         # now experimental sets are not saved, only the data selected from these sets
 
         # predict the test set
+        print('Predicting test set...')
         if args.path_test is not None:
             predict_args = process_predict_args(args, path_results, type='test')
             preds, unc = make_predictions(args=predict_args, return_uncertainty=True)
