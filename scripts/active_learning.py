@@ -19,32 +19,29 @@ def process_predict_args(args, path_results, type):
         predict_args = FingerprintArgs()
     else:
         predict_args = PredictArgs()
-    predict_args.number_of_molecules = args.number_of_molecules
-    predict_args.checkpoint_dir = args.save_dir
-    predict_args.checkpoint_paths = get_checkpoint_paths(
-        checkpoint_path=predict_args.checkpoint_path,
-        checkpoint_paths=predict_args.checkpoint_paths,
-        checkpoint_dir=predict_args.checkpoint_dir,
-    )
 
-    predict_args.uncertainty_method = 'ensemble'
     if type == 'test':
-        predict_args.test_path = args.path_test
+        test_path = args.path_test
     elif type =='exp' or type =='fp_exp':
-        predict_args.test_path = os.path.join(path_results, f'temp_in.csv')
+        test_path = os.path.join(path_results, f'temp_in.csv')
     elif type == 'fp_train':
-        predict_args.test_path = args.data_path
+        test_path = args.data_path
     else:
         return ValueError('type unkown to parse prediction args')
-    predict_args.smiles_columns = preprocess_smiles_columns(
-        path=predict_args.test_path,
-        smiles_columns=predict_args.smiles_columns,
-        number_of_molecules=predict_args.number_of_molecules,
-    )
+    
     if 'fp' in type:
-        predict_args.preds_path = os.path.join(path_results, f'{type}.csv')
+        preds_path = os.path.join(path_results, f'{type}.csv')
     else:
-        predict_args.preds_path = os.path.join(path_results, f'temp_out.csv')
+        preds_path = os.path.join(path_results, f'temp_out.csv')
+
+    predict_args.parse_args([
+        "--number_of_molecules", str(args.number_of_molecules),
+        "--checkpoint_dir", args.save_dir,
+        "--uncertainty_method", 'ensemble',
+        "--test_path", test_path,
+        "--preds_path", preds_path,
+        "--num_workers", "0", # experiencing issues with multiprocessing for predictions...
+    ])
     return predict_args
 
 
@@ -165,6 +162,7 @@ def run_active_learning(args: ActiveLearningArgs):
         # predict the experimental set
         print('Predicting experimental set...')
         predict_args = process_predict_args(args, path_results, type='exp')
+        print(predict_args)
         preds, unc = make_predictions(args=predict_args, return_uncertainty=True)
         df_experimental[f'preds'] = np.ravel(preds)
         df_experimental[f'unc'] = np.ravel(unc)
