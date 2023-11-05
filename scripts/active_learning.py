@@ -107,6 +107,20 @@ def run_active_learning(args: ActiveLearningArgs):
     data_selection_variable_amount = args.data_selection_variable_amount
     fixed_experimental_size = args.fixed_experimental_size
     variable_experimental_size_factor = args.variable_experimental_size_factor
+    if data_selection_criterion == 'on_the_fly_clustering':
+        if args.use_pca_for_clustering:
+            if args.pca_number_of_components is None and args.pca_fraction_of_variance_explained is None:
+                raise ValueError('You need to specify either the number of components or the fraction of variance explained '
+                                 'for the PCA.')
+            elif args.pca_number_of_components is not None and args.pca_fraction_of_variance_explained is not None:
+                raise ValueError('You need to specify either the number of components or the fraction of variance explained '
+                                 'for the PCA, not both.')
+            elif args.pca_number_of_components is not None:
+                n_components = args.pca_number_of_components
+            elif args.pca_fraction_of_variance_explained is not None:
+                if not (0 < args.pca_fraction_of_variance_explained <= 1):
+                    raise ValueError('The fraction of variance explained for the PCA needs to be between 0 and 1.')
+                n_components = args.pca_fraction_of_variance_explained
 
     path_results = args.save_dir
     if not os.path.exists(path_results):
@@ -164,9 +178,9 @@ def run_active_learning(args: ActiveLearningArgs):
                 df_temp = pd.DataFrame(df_fp, columns=[c for c in df_fp.columns if
                                                        f'mol_{args.fingerprint_idx}_model_{model_idx}' in c])
                 if args.use_pca_for_clustering:
-                    pca = PCA(n_components=args.pca_number_of_components)
+                    pca = PCA(n_components=n_components)
                     components = pca.fit_transform(df_temp)
-                    for i in range(args.pca_number_of_components):
+                    for i in range(components.shape[1]):
                         df_fp[f'pc_{i + 1}_{model_idx}'] = components[:, i]
                     for_clustering = components
                 else:
@@ -179,7 +193,7 @@ def run_active_learning(args: ActiveLearningArgs):
                                                                f'mol_{args.fingerprint_idx}_model_{model_idx}' in c])
                 if args.use_pca_for_clustering:
                     components = pca.transform(df_temp_exp)
-                    for i in range(args.pca_number_of_components):
+                    for i in range(components.shape[1]):
                         df_fp_exp[f'pc_{i + 1}_{model_idx}'] = components[:, i]
                     for_clustering = components
                 else:
