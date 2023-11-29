@@ -19,32 +19,29 @@ def process_predict_args(args, path_results, type):
         predict_args = FingerprintArgs()
     else:
         predict_args = PredictArgs()
-    predict_args.number_of_molecules = args.number_of_molecules
-    predict_args.checkpoint_dir = args.save_dir
-    predict_args.checkpoint_paths = get_checkpoint_paths(
-        checkpoint_path=predict_args.checkpoint_path,
-        checkpoint_paths=predict_args.checkpoint_paths,
-        checkpoint_dir=predict_args.checkpoint_dir,
-    )
 
-    predict_args.uncertainty_method = 'ensemble'
     if type == 'test':
-        predict_args.test_path = args.path_test
+        test_path = args.path_test
     elif type =='exp' or type =='fp_exp':
-        predict_args.test_path = os.path.join(path_results, f'temp_in.csv')
+        test_path = os.path.join(path_results, f'temp_in.csv')
     elif type == 'fp_train':
-        predict_args.test_path = args.data_path
+        test_path = args.data_path
     else:
         return ValueError('type unkown to parse prediction args')
-    predict_args.smiles_columns = preprocess_smiles_columns(
-        path=predict_args.test_path,
-        smiles_columns=predict_args.smiles_columns,
-        number_of_molecules=predict_args.number_of_molecules,
-    )
+    
     if 'fp' in type:
-        predict_args.preds_path = os.path.join(path_results, f'{type}.csv')
+        preds_path = os.path.join(path_results, f'{type}.csv')
     else:
-        predict_args.preds_path = os.path.join(path_results, f'temp_out.csv')
+        preds_path = os.path.join(path_results, f'temp_out.csv')
+
+    predict_args.parse_args([
+        "--number_of_molecules", str(args.number_of_molecules),
+        "--checkpoint_dir", args.save_dir,
+        "--uncertainty_method", 'ensemble',
+        "--test_path", test_path,
+        "--preds_path", preds_path,
+        "--num_workers", "0", # experiencing issues with multiprocessing for predictions...
+    ])
     return predict_args
 
 
@@ -107,6 +104,20 @@ def run_active_learning(args: ActiveLearningArgs):
     data_selection_variable_amount = args.data_selection_variable_amount
     fixed_experimental_size = args.fixed_experimental_size
     variable_experimental_size_factor = args.variable_experimental_size_factor
+    if data_selection_criterion == 'on_the_fly_clustering':
+        if args.use_pca_for_clustering:
+            if args.pca_number_of_components is None and args.pca_fraction_of_variance_explained is None:
+                raise ValueError('You need to specify either the number of components or the fraction of variance explained '
+                                 'for the PCA.')
+            elif args.pca_number_of_components is not None and args.pca_fraction_of_variance_explained is not None:
+                raise ValueError('You need to specify either the number of components or the fraction of variance explained '
+                                 'for the PCA, not both.')
+            elif args.pca_number_of_components is not None:
+                n_components = args.pca_number_of_components
+            elif args.pca_fraction_of_variance_explained is not None:
+                if not (0 < args.pca_fraction_of_variance_explained <= 1):
+                    raise ValueError('The fraction of variance explained for the PCA needs to be between 0 and 1.')
+                n_components = args.pca_fraction_of_variance_explained
 
     path_results = args.save_dir
     if not os.path.exists(path_results):
@@ -128,6 +139,8 @@ def run_active_learning(args: ActiveLearningArgs):
         clustering_results = dict()
 
     for al_run in range(active_learning_steps):
+        print(f'Active learning run {al_run} of {active_learning_steps}...')
+        
         size_training = len(df_training.index)
         size_data_selection = int(data_selection_fixed_amount) if data_selection_fixed_amount \
             else round(size_training * data_selection_variable_amount)
@@ -142,11 +155,14 @@ def run_active_learning(args: ActiveLearningArgs):
         df_experimental.to_csv(os.path.join(path_results, f'temp_in.csv'), index=False)
 
         # train the model
+        print('Training model...')
         args.save_dir = os.path.join(path_results, f'models_run_{al_run}')
         cross_validate(args=args, train_func=run_training)
 
         # predict the experimental set
+        print('Predicting experimental set...')
         predict_args = process_predict_args(args, path_results, type='exp')
+        print(predict_args)
         preds, unc = make_predictions(args=predict_args, return_uncertainty=True)
         df_experimental[f'preds'] = np.ravel(preds)
         df_experimental[f'unc'] = np.ravel(unc)
@@ -163,25 +179,27 @@ def run_active_learning(args: ActiveLearningArgs):
             for model_idx in range(args.ensemble_size):
                 df_temp = pd.DataFrame(df_fp, columns=[c for c in df_fp.columns if
                                                        f'mol_{args.fingerprint_idx}_model_{model_idx}' in c])
-
-                pca = PCA(n_components=args.pca_number_of_components)
-                components = pca.fit_transform(df_temp)
-                for i in range(args.pca_number_of_components):
-                    df_fp[f'pc_{i + 1}_{model_idx}'] = components[:, i]
-                for_clustering = components
-
+                if args.use_pca_for_clustering:
+                    pca = PCA(n_components=n_components)
+                    components = pca.fit_transform(df_temp)
+                    for i in range(components.shape[1]):
+                        df_fp[f'pc_{i + 1}_{model_idx}'] = components[:, i]
+                    for_clustering = components
+                else:
+                    for_clustering = df_temp
                 kmeanModel = KMeans(n_clusters=args.number_of_clusters, random_state=0, n_init='auto').fit(for_clustering)
                 df_fp[f'cluster_{model_idx}'] = kmeanModel.labels_
 
                 # apply clustering
                 df_temp_exp = pd.DataFrame(df_fp_exp, columns=[c for c in df_fp_exp.columns if
                                                                f'mol_{args.fingerprint_idx}_model_{model_idx}' in c])
-
-                components = pca.transform(df_temp_exp)
-                for i in range(args.pca_number_of_components):
-                    df_fp_exp[f'pc_{i + 1}_{model_idx}'] = components[:, i]
-                for_clustering = components
-
+                if args.use_pca_for_clustering:
+                    components = pca.transform(df_temp_exp)
+                    for i in range(components.shape[1]):
+                        df_fp_exp[f'pc_{i + 1}_{model_idx}'] = components[:, i]
+                    for_clustering = components
+                else:
+                    for_clustering = df_temp_exp
                 clustering = kmeanModel.predict(for_clustering)
                 df_fp_exp[f'cluster_{model_idx}'] = clustering
                 df_fp_exp[f'min_distance_{model_idx}'] = np.min(
@@ -193,6 +211,7 @@ def run_active_learning(args: ActiveLearningArgs):
             df_experimental[f'avg_norm_min_distance'] = df_experimental[columns].sum(axis=1)
 
         # predict the test set
+        print('Predicting test set...')
         if args.path_test is not None:
             predict_args = process_predict_args(args, path_results, type='test')
             preds, unc = make_predictions(args=predict_args, return_uncertainty=True)

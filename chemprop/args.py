@@ -1035,6 +1035,17 @@ class ActiveLearningArgs(TrainArgs):
     """cluster_equal: selection based on highest ensemble variance with equal distribution from a priori clustering """
     """cluster_weight: selection based on highest ensemble variance with weighted distribution from a priori clustering based on cluster ensemble variance """
     """on_the_fly_clustering: based on on-the-fly clustering of latent representation"""
+
+    fingerprint_idx: int = 0
+    """Idx of MPNN fingerprint used for clustering, only if number_of_molecules>1"""
+    use_pca_for_clustering: bool = False
+    """Whether to use PCA for on-the-fly clustering"""
+    pca_number_of_components: int = None
+    """Number of PC for on-the-fly clustering."""
+    pca_fraction_of_variance_explained: float = None
+    """Fraction of explained variance for on-the-fly clustering. Number of PC is selected to explain greater than the specified percentage of variances. 0 < pca_fraction_of_variance_explained < 1."""
+    number_of_clusters: int = 10
+    """Number of clusters for on-the-fly clustering"""
     data_selection_fixed_amount: int = None
     """Number of datapoints to be added if a fixed number"""
     data_selection_variable_amount: float = 0.1
@@ -1047,14 +1058,6 @@ class ActiveLearningArgs(TrainArgs):
     """If not fixed, the factor of the experimental data size that is evaluated in every run with respect to the data added"""
     path_test: str = None
     """Path to CSV file containing an external test set that is evaluated every active learning run."""
-
-    # the following features are only necessary if on-the-fly clustering is used to select data
-    fingerprint_idx: int = 0
-    """Idx of MPNN fingerprint used for clustering, only if number_of_molecules>1"""
-    pca_number_of_components: int = 20
-    """Number of PC for on-the-fly clustering"""
-    number_of_clusters: int = 10
-    """Number of clusters for on-the-fly clustering"""
 
     def process_args(self) -> None:
         super(ActiveLearningArgs, self).process_args()
