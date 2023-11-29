@@ -131,6 +131,7 @@ def run_active_learning(args: ActiveLearningArgs):
 
     df_experimental_all_results = pd.DataFrame()
 
+    #todo, this can easily cause errors when other arguments are added. Be careful! And maybe change this to a better way
     if 'cluster' in data_selection_criterion and not 'clustering' in data_selection_criterion:
         if not 'cluster' in df_experimental_all.columns:
             raise ValueError(f'The experimental dataset needs a column called cluster if you '
