@@ -92,6 +92,14 @@ def select_data(df, criterion, size):
         df_selected = df.sort_values(by='avg_norm_min_distance', ascending=False)
         df_selected = df_selected.head(n=size)
         return df_selected
+    elif criterion == 'on_the_fly_clustering_silhouette':
+        df_selected = df.sort_values(by='avg_a_b_ratio', ascending=False)
+        df_selected = df_selected.head(n=size)
+        return df_selected
+    elif criterion == 'on_the_fly_clustering_in_cluster_dist_ratio':
+        df_selected = df.sort_values(by='avg_in_cluster_dist_ratio', ascending=False)
+        df_selected = df_selected.head(n=size)
+        return df_selected
     else:
         return ValueError(f'criterion {criterion} not in defined list')
 
@@ -104,7 +112,7 @@ def run_active_learning(args: ActiveLearningArgs):
     data_selection_variable_amount = args.data_selection_variable_amount
     fixed_experimental_size = args.fixed_experimental_size
     variable_experimental_size_factor = args.variable_experimental_size_factor
-    if data_selection_criterion == 'on_the_fly_clustering':
+    if "on_the_fly_clustering" in data_selection_criterion:
         if args.use_pca_for_clustering:
             if args.pca_number_of_components is None and args.pca_fraction_of_variance_explained is None:
                 raise ValueError('You need to specify either the number of components or the fraction of variance explained '
@@ -136,7 +144,8 @@ def run_active_learning(args: ActiveLearningArgs):
         if not 'cluster' in df_experimental_all.columns:
             raise ValueError(f'The experimental dataset needs a column called cluster if you '
                              f'use the {data_selection_criterion} method.')
-    if data_selection_criterion == 'on_the_fly_clustering':
+
+    if "on_the_fly_clustering" in data_selection_criterion:
         clustering_results = dict()
 
     for al_run in range(active_learning_steps):
@@ -162,12 +171,13 @@ def run_active_learning(args: ActiveLearningArgs):
 
         # predict the experimental set
         print('Predicting experimental set...')
+        args.save_dir = os.path.join(path_results, f'models_run_{al_run}') # needs to reset this because training changes it
         predict_args = process_predict_args(args, path_results, type='exp')
         print(predict_args)
         preds, unc = make_predictions(args=predict_args, return_uncertainty=True)
         df_experimental[f'preds'] = np.ravel(preds)
         df_experimental[f'unc'] = np.ravel(unc)
-        if data_selection_criterion == 'on_the_fly_clustering':
+        if 'on_the_fly_clustering' in data_selection_criterion:
             # make the fingerprints for the exp data
             fingerprint_args = process_predict_args(args, path_results, type='fp_exp')
             molecule_fingerprint(args=fingerprint_args)
@@ -179,7 +189,7 @@ def run_active_learning(args: ActiveLearningArgs):
 
             for model_idx in range(args.ensemble_size):
                 df_temp = pd.DataFrame(df_fp, columns=[c for c in df_fp.columns if
-                                                       f'mol_{args.fingerprint_idx}_model_{model_idx}' in c])
+                                                    f'mol_{args.fingerprint_idx}_model_{model_idx}' in c])
                 if args.use_pca_for_clustering:
                     pca = PCA(n_components=n_components)
                     components = pca.fit_transform(df_temp)
@@ -190,10 +200,11 @@ def run_active_learning(args: ActiveLearningArgs):
                     for_clustering = df_temp
                 kmeanModel = KMeans(n_clusters=args.number_of_clusters, random_state=0, n_init='auto').fit(for_clustering)
                 df_fp[f'cluster_{model_idx}'] = kmeanModel.labels_
+                max_in_cluster_dists = np.array([np.min(cdist(for_clustering[kmeanModel.labels_==i], kmeanModel.cluster_centers_[[i]])) for i in range(args.number_of_clusters)])
 
                 # apply clustering
                 df_temp_exp = pd.DataFrame(df_fp_exp, columns=[c for c in df_fp_exp.columns if
-                                                               f'mol_{args.fingerprint_idx}_model_{model_idx}' in c])
+                                                            f'mol_{args.fingerprint_idx}_model_{model_idx}' in c])
                 if args.use_pca_for_clustering:
                     components = pca.transform(df_temp_exp)
                     for i in range(components.shape[1]):
@@ -203,18 +214,42 @@ def run_active_learning(args: ActiveLearningArgs):
                     for_clustering = df_temp_exp
                 clustering = kmeanModel.predict(for_clustering)
                 df_fp_exp[f'cluster_{model_idx}'] = clustering
-                df_fp_exp[f'min_distance_{model_idx}'] = np.min(
-                    cdist(for_clustering, kmeanModel.cluster_centers_, 'euclidean'), axis=1)
-                df_experimental[f'min_distance_{model_idx}'] = df_fp_exp[f'min_distance_{model_idx}'].values
-                df_experimental[f'norm_min_distance_{model_idx}'] = (df_experimental[f'min_distance_{model_idx}']/
-                                                               df_experimental[f'min_distance_{model_idx}'].max())
-            columns = [f'norm_min_distance_{model_idx}' for model_idx in range(args.ensemble_size)]
-            df_experimental[f'avg_norm_min_distance'] = df_experimental[columns].sum(axis=1)
+                if data_selection_criterion == 'on_the_fly_clustering':
+                    df_fp_exp[f'min_distance_{model_idx}'] = np.min(
+                        cdist(for_clustering, kmeanModel.cluster_centers_, 'euclidean'), axis=1)
+                    df_experimental[f'min_distance_{model_idx}'] = df_fp_exp[f'min_distance_{model_idx}'].values
+                    df_experimental[f'norm_min_distance_{model_idx}'] = (df_experimental[f'min_distance_{model_idx}']/
+                                                                df_experimental[f'min_distance_{model_idx}'].max())
+                elif data_selection_criterion == 'on_the_fly_clustering_silhouette':
+                    cdists = cdist(for_clustering, kmeanModel.cluster_centers_, 'euclidean')
+                    cdists = np.sort(cdists, axis=1)
+                    a_b_ratios = cdists[:, 0]/cdists[:, 1]
+                    df_experimental[f'min_distance_{model_idx}'] = cdists[:, 0]
+                    df_experimental[f'second_min_distance_{model_idx}'] = cdists[:, 1]
+                    df_experimental[f'a_b_ratio_{model_idx}'] = a_b_ratios
+                elif data_selection_criterion == 'on_the_fly_clustering_in_cluster_dist_ratio':
+                    max_in_cluster_dists = np.array([max_in_cluster_dists[cluster] for cluster in clustering])
+                    min_dists = np.min(
+                        cdist(for_clustering, kmeanModel.cluster_centers_, 'euclidean'), axis=1)
+                    df_experimental[f'max_in_cluster_dist_{model_idx}'] = max_in_cluster_dists
+                    df_experimental[f'min_distance_{model_idx}'] = min_dists
+                    df_experimental[f'in_cluster_dist_ratio_{model_idx}'] = min_dists/max_in_cluster_dists
+
+            if data_selection_criterion == 'on_the_fly_clustering':
+                columns = [f'norm_min_distance_{model_idx}' for model_idx in range(args.ensemble_size)]
+                df_experimental[f'avg_norm_min_distance'] = df_experimental[columns].sum(axis=1)
+            elif data_selection_criterion == 'on_the_fly_clustering_silhouette':
+                columns = [f'a_b_ratio_{model_idx}' for model_idx in range(args.ensemble_size)]
+                df_experimental[f'avg_a_b_ratio'] = df_experimental[columns].sum(axis=1)
+            elif data_selection_criterion == 'on_the_fly_clustering_in_cluster_dist_ratio':
+                columns = [f'in_cluster_dist_ratio_{model_idx}' for model_idx in range(args.ensemble_size)]
+                df_experimental[f'avg_in_cluster_dist_ratio'] = df_experimental[columns].sum(axis=1)
 
         # predict the test set
         print('Predicting test set...')
         if args.path_test is not None:
             predict_args = process_predict_args(args, path_results, type='test')
+            print(predict_args)
             preds, unc = make_predictions(args=predict_args, return_uncertainty=True)
             df_test[f'preds_run{al_run}'] = np.ravel(preds)
             df_test[f'unc_run{al_run}'] = np.ravel(unc)
@@ -235,7 +270,7 @@ def run_active_learning(args: ActiveLearningArgs):
             df_experimental_all_results_temp = pd.concat([df_experimental_all_results, df_experimental_all])
             with open(os.path.join(path_results, f'experimental_results.pickle'), 'wb') as f:
                 pickle.dump(df_experimental_all_results_temp, f)
-            if data_selection_criterion == 'on_the_fly_clustering':
+            if "on_the_fly_clustering" in data_selection_criterion:
                 clustering_results[al_run] = (df_fp, df_fp_exp)
                 with open(os.path.join(path_results, f'clustering_results.pickle'), 'wb') as f:
                     pickle.dump(clustering_results, f)

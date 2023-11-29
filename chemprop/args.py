@@ -1057,7 +1057,7 @@ class ActiveLearningArgs(TrainArgs):
     """:class:`ActiveLearningArgs` includes :class:`TrainArgs` along with additional arguments used for active learning."""
     active_learning_steps: int = 10
     """Number of steps in the active learning loop"""
-    data_selection_criterion: Literal['random', 'ens_var', 'ens_var_scaled', 'cluster_equal', 'cluster_weight', 'on_the_fly_clustering', 'error_calibration_cluster', 'error_calibration_learning']
+    data_selection_criterion: Literal['random', 'ens_var', 'ens_var_scaled', 'cluster_equal', 'cluster_weight', 'on_the_fly_clustering', 'on_the_fly_clustering_in_cluster_dist_ratio', 'calibration_cluster_bias', 'error_calibration_cluster', 'error_calibration_learning']
     """Criterion to select data"""
     """random: random selection of new data from experimental set"""
     """ens_var: selection based on highest ensemble variance"""
@@ -1065,9 +1065,10 @@ class ActiveLearningArgs(TrainArgs):
     """cluster_equal: selection based on highest ensemble variance with equal distribution from a priori clustering """
     """cluster_weight: selection based on highest ensemble variance with weighted distribution from a priori clustering based on cluster ensemble variance """
     """on_the_fly_clustering: based on on-the-fly clustering of latent representation"""
+    """on_the_fly_clustering_silhouette: based on on-the-fly clustering of latent representation with a variant of silhouette score"""
+    """on_the_fly_clustering_in_cluster_dist_ratio: based on on-the-fly clustering of latent representation with in-cluster distance ratio"""
     """error_calibration_cluster: weight clusters by errors in external calibration set"""
     """error_calibration_learning: train model on the error of an external calibration set to learn errors"""
-
     fingerprint_idx: int = 0
     """Idx of MPNN fingerprint used for clustering, only if number_of_molecules>1"""
     use_pca_for_clustering: bool = False
