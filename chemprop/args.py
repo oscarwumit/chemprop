@@ -1024,7 +1024,7 @@ class FingerprintArgs(PredictArgs):
     """Choice of which type of latent fingerprint vector to use. Default is the output of the MPNN, excluding molecular features"""
 
 class ActiveLearningArgs(TrainArgs):
-    """:class:`ActiveLearningArgs` includes :class:`TrainArgs`, 'PredictArgs', 'FingerprintArgs' along with additional arguments used for active learning."""
+    """:class:`ActiveLearningArgs` includes :class:`TrainArgs` along with additional arguments used for active learning."""
     active_learning_steps: int = 10
     """Number of steps in the active learning loop"""
     data_selection_criterion: Literal['random', 'ens_var', 'ens_var_scaled', 'cluster_equal', 'cluster_weight', 'on_the_fly_clustering']
