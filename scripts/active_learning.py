@@ -1,4 +1,5 @@
 import os
+from random import Random
 
 import numpy as np
 import pandas as pd
@@ -14,7 +15,31 @@ from chemprop.train import cross_validate, run_training, make_predictions
 from chemprop.train.molecule_fingerprint import molecule_fingerprint
 
 
-def process_predict_args(args, path_results, type):
+def split_calibration_set(args=None, df_training=None):
+    """function to reproduce data splitting from cross_validation"""
+    """try to avoid making a chemprop data.MoleculeDataset object since that requires converting smiles"""
+    if args.split_type != 'random':
+        return ValueError('calibration only works with random split types')
+    df_calibration = pd.DataFrame()
+    init_seed = args.seed
+    sizes = args.split_sizes
+    data = df_training
+    for fold_num in range(args.num_folds):
+        seed = init_seed + fold_num
+        random = Random(seed)
+        indices = list(range(len(data)))
+        random.shuffle(indices)
+        # todo check if len is correct
+        train_size = int(sizes[0] * len(data))
+        train_val_size = int((sizes[0] + sizes[1]) * len(data))
+        #todo check how to get data from df with defined idx
+        _df_calibration = indices[train_val_size:]
+        _df_calibration['fold_idx'] = fold_num
+        df_calibration = pd.concat([df_calibration, _df_calibration])
+    return df_calibration
+
+
+def process_predict_args(args, path_results, type, num_fold=None):
     if 'fp' in type:
         predict_args = FingerprintArgs()
     else:
@@ -22,7 +47,7 @@ def process_predict_args(args, path_results, type):
 
     if type == 'test':
         test_path = args.path_test
-    elif type =='exp' or type =='fp_exp':
+    elif type =='exp' or type =='fp_exp' or type == 'cal':
         test_path = os.path.join(path_results, f'temp_in.csv')
     elif type == 'fp_train':
         test_path = args.data_path
@@ -34,9 +59,13 @@ def process_predict_args(args, path_results, type):
     else:
         preds_path = os.path.join(path_results, f'temp_out.csv')
 
+    if 'cal' in type:
+        checkpoint_dir = os.path.join(args.save_dir, f'fold_{num_fold}')
+    else:
+        checkpoint_dir = args.save_dir
     predict_args.parse_args([
         "--number_of_molecules", str(args.number_of_molecules),
-        "--checkpoint_dir", args.save_dir,
+        "--checkpoint_dir", checkpoint_dir,
         "--uncertainty_method", 'ensemble',
         "--test_path", test_path,
         "--preds_path", preds_path,
@@ -152,16 +181,33 @@ def run_active_learning(args: ActiveLearningArgs):
             size_experimental = int(fixed_experimental_size)
 
         df_experimental = df_experimental_all.sample(n=size_experimental, random_state=al_run)
-        # safe the experimental file because chemprop will only read a csv file
-        df_experimental.to_csv(os.path.join(path_results, f'temp_in.csv'), index=False)
+
+        # split calibration set, needs to be done before training or seed will be adjusted
+        if 'calibration' in data_selection_criterion:
+            df_calibration = split_calibration_set(args=args, trainingset=df_training)
 
         # train the model
         print('Training model...')
         args.save_dir = os.path.join(path_results, f'models_run_{al_run}')
         cross_validate(args=args, train_func=run_training)
 
+        # predict the calibration set
+        if 'calibration' in data_selection_criterion:
+            print('Predicting calibration sets...')
+            for fold_num in range(args.num_folds):
+                _df_calibration = df_calibration[df_calibration.fold_idx == fold_num]
+                _df_calibration.to_csv(os.path.join(path_results, f'temp_in.csv'), index=False)
+                predict_args = process_predict_args(args, path_results, type='cal', num_fold=fold_num)
+                preds, unc = make_predictions(args=predict_args, return_uncertainty=True)
+                _df_calibration[f'preds'] = np.ravel(preds)
+                _df_calibration[f'unc'] = np.ravel(unc)
+                #todo merge again with df_cal so the results are there
+                #todo do we need to save these results?
+
         # predict the experimental set
         print('Predicting experimental set...')
+        # safe the experimental file because chemprop will only read a csv file
+        df_experimental.to_csv(os.path.join(path_results, f'temp_in.csv'), index=False)
         predict_args = process_predict_args(args, path_results, type='exp')
         print(predict_args)
         preds, unc = make_predictions(args=predict_args, return_uncertainty=True)
