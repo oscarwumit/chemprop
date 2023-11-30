@@ -1057,7 +1057,7 @@ class ActiveLearningArgs(TrainArgs):
     """:class:`ActiveLearningArgs` includes :class:`TrainArgs` along with additional arguments used for active learning."""
     active_learning_steps: int = 10
     """Number of steps in the active learning loop"""
-    data_selection_criterion: Literal['random', 'ens_var', 'ens_var_scaled', 'cluster_equal', 'cluster_weight', 'on_the_fly_clustering', 'on_the_fly_clustering_in_cluster_dist_ratio', 'calibration_cluster_bias', 'error_calibration_cluster', 'error_calibration_learning']
+    data_selection_criterion: Literal['random', 'ens_var', 'ens_var_scaled', 'cluster_equal', 'cluster_weight', 'on_the_fly_clustering', 'on_the_fly_clustering_silhouette', 'on_the_fly_clustering_in_cluster_dist_ratio', 'error_calibration_cluster', 'error_calibration_learning']
     """Criterion to select data"""
     """random: random selection of new data from experimental set"""
     """ens_var: selection based on highest ensemble variance"""
