@@ -15,7 +15,7 @@ from chemprop.train import cross_validate, run_training, make_predictions
 from chemprop.train.molecule_fingerprint import molecule_fingerprint
 
 
-def split_calibration_set(args=None, df_training=None):
+def split_calibration_set(args=None, trainingset=None):
     """function to reproduce data splitting from cross_validation"""
     """try to avoid making a chemprop data.MoleculeDataset object since that requires converting smiles"""
     if args.split_type != 'random':
@@ -23,17 +23,15 @@ def split_calibration_set(args=None, df_training=None):
     df_calibration = pd.DataFrame()
     init_seed = args.seed
     sizes = args.split_sizes
-    data = df_training
+    data = trainingset
     for fold_num in range(args.num_folds):
         seed = init_seed + fold_num
         random = Random(seed)
         indices = list(range(len(data)))
         random.shuffle(indices)
-        # todo check if len is correct
-        train_size = int(sizes[0] * len(data))
         train_val_size = int((sizes[0] + sizes[1]) * len(data))
-        #todo check how to get data from df with defined idx
-        _df_calibration = indices[train_val_size:]
+        indices_for_calibration = indices[train_val_size:]
+        _df_calibration = data.loc[indices_for_calibration]
         _df_calibration['fold_idx'] = fold_num
         df_calibration = pd.concat([df_calibration, _df_calibration])
     return df_calibration
@@ -201,7 +199,8 @@ def run_active_learning(args: ActiveLearningArgs):
                 preds, unc = make_predictions(args=predict_args, return_uncertainty=True)
                 _df_calibration[f'preds'] = np.ravel(preds)
                 _df_calibration[f'unc'] = np.ravel(unc)
-                #todo merge again with df_cal so the results are there
+                #todo check if works
+                df_calibration = pd.concat([df_calibration, _df_calibration])
                 #todo do we need to save these results?
 
         # predict the experimental set
