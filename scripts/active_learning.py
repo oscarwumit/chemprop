@@ -191,6 +191,7 @@ def run_active_learning(args: ActiveLearningArgs):
         #reset save_dir because updated during training
         args.save_dir = os.path.join(path_results, f'models_run_{al_run}')
 
+        df_calibration_results = pd.DataFrame()
         # predict the calibration set
         if 'calibration' in data_selection_criterion:
             print('Predicting calibration sets...')
@@ -201,8 +202,7 @@ def run_active_learning(args: ActiveLearningArgs):
                 preds, unc = make_predictions(args=predict_args, return_uncertainty=True)
                 _df_calibration[f'preds'] = np.ravel(preds)
                 _df_calibration[f'unc'] = np.ravel(unc)
-                #todo check if works
-                df_calibration = pd.concat([df_calibration, _df_calibration])
+                df_calibration_results = pd.concat([df_calibration_results, _df_calibration])
                 #todo do we need to save these results?
 
         # predict the experimental set
