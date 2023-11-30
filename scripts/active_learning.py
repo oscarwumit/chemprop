@@ -188,6 +188,8 @@ def run_active_learning(args: ActiveLearningArgs):
         print('Training model...')
         args.save_dir = os.path.join(path_results, f'models_run_{al_run}')
         cross_validate(args=args, train_func=run_training)
+        #reset save_dir because updated during training
+        args.save_dir = os.path.join(path_results, f'models_run_{al_run}')
 
         # predict the calibration set
         if 'calibration' in data_selection_criterion:
