@@ -127,6 +127,21 @@ def select_data(df, criterion, size):
         df_selected = df.sort_values(by='avg_in_cluster_dist_ratio', ascending=False)
         df_selected = df_selected.head(n=size)
         return df_selected
+    elif criterion == 'on_the_fly_clustering_weight':
+        df = df.sort_values(by='unc', ascending=False)
+        sum_factors = df.unc.sum()
+        df_selected = pd.DataFrame()
+        ensemble_size = max([column.split("cluster_") for column in df.columns if 'cluster_' in column]) + 1
+        size_per_model = int(size/ensemble_size)
+        for model_idx in range(ensemble_size):
+            clusters = df[f'cluster_{model_idx}'].unique()
+            df = df.groupby(f'cluster_{model_idx}')
+            for c in clusters:
+                df_temp = df[df[f'cluster_{model_idx}'] == c]
+                c_factor = np.sum(df_temp.unc.values)
+                size_to_add = round(c_factor/sum_factors*size_per_model)
+                df_temp = df_temp.head(n=size_to_add)
+                df_selected = pd.concat([df_selected, df_temp])
     else:
         return ValueError(f'criterion {criterion} not in defined list')
 
@@ -281,6 +296,8 @@ def run_active_learning(args: ActiveLearningArgs):
                     df_experimental[f'max_in_cluster_dist_{model_idx}'] = max_in_cluster_dists
                     df_experimental[f'min_distance_{model_idx}'] = min_dists
                     df_experimental[f'in_cluster_dist_ratio_{model_idx}'] = min_dists/max_in_cluster_dists
+                elif data_selection_criterion == 'on_the_fly_clustering_weight':
+                    df_experimental[f'cluster_{model_idx}'] = clustering
 
             if data_selection_criterion == 'on_the_fly_clustering':
                 columns = [f'norm_min_distance_{model_idx}' for model_idx in range(args.ensemble_size)]
