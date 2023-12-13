@@ -131,11 +131,10 @@ def select_data(df, criterion, size):
         df = df.sort_values(by='unc', ascending=False)
         sum_factors = df.unc.sum()
         df_selected = pd.DataFrame()
-        ensemble_size = max([int(column.split("cluster_")[0]) for column in df.columns if 'cluster_' in column]) + 1
+        ensemble_size = max([int(column.split("cluster_")[1]) for column in df.columns if 'cluster_' in column]) + 1
         size_per_model = int(size/ensemble_size)
         for model_idx in range(ensemble_size):
             clusters = df[f'cluster_{model_idx}'].unique()
-            df = df.groupby(f'cluster_{model_idx}')
             for c in clusters:
                 df_temp = df[df[f'cluster_{model_idx}'] == c]
                 c_factor = np.sum(df_temp.unc.values)
