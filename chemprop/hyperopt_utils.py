@@ -29,7 +29,7 @@ def build_search_space(search_parameters: List[str], train_epochs: int = None) -
         "aggregation_norm": hp.quniform("aggregation_norm", low=1, high=200, q=1),
         "batch_size": hp.quniform("batch_size", low=5, high=200, q=5),
         "depth": hp.quniform("depth", low=2, high=6, q=1),
-        "dropout": hp.quniform("dropout", low=0.0, high=0.4, q=0.05),
+        "dropout": hp.quniform("dropout", low=0.0, high=0.1, q=0.05),
         "ffn_hidden_size": hp.quniform("ffn_hidden_size", low=300, high=2400, q=100),
         "ffn_num_layers": hp.quniform("ffn_num_layers", low=1, high=3, q=1),
         "final_lr_ratio": hp.loguniform("final_lr_ratio", low=np.log(1e-4), high=0.),
