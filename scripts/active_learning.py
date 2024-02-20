@@ -61,14 +61,27 @@ def process_predict_args(args, path_results, type, num_fold=None):
         checkpoint_dir = os.path.join(args.save_dir, f'fold_{num_fold}')
     else:
         checkpoint_dir = args.save_dir
-    predict_args.parse_args([
+    if args.data_selection_criterion in ['mve_var', 'mve_var_scaled']:
+        uncertainty_method = 'mve'
+    elif args.data_selection_criterion in ['random', 'on_the_fly_clustering', 'on_the_fly_clustering_silhouette', 'on_the_fly_clustering_in_cluster_dist_ratio']:
+        uncertainty_method = None
+    else:
+        uncertainty_method = 'ensemble'
+
+    args = [
         "--number_of_molecules", str(args.number_of_molecules),
         "--checkpoint_dir", checkpoint_dir,
-        "--uncertainty_method", 'ensemble',
         "--test_path", test_path,
         "--preds_path", preds_path,
         "--num_workers", "0", # experiencing issues with multiprocessing for predictions...
-    ])
+    ]
+
+    if uncertainty_method is not None:
+        args.extend([
+            "--uncertainty_method", uncertainty_method,
+        ])
+
+    predict_args.parse_args(args)
     return predict_args
 
 
@@ -76,11 +89,11 @@ def select_data(df, criterion, size):
     if criterion == 'random':
         df_selected = df.sample(n=size, random_state=0)
         return df_selected
-    elif criterion == 'ens_var':
+    elif criterion == 'ens_var' or criterion == 'mve_var':
         df_selected = df.sort_values(by='unc', ascending=False)
         df_selected = df_selected.head(n=size)
         return df_selected
-    elif criterion == 'ens_var_scaled':
+    elif criterion == 'ens_var_scaled' or criterion == 'mve_var_scaled':
         df['scaled_ensemble_variance'] = df[f'unc'] / (np.abs(df[f'preds']) + np.mean(np.abs(df[f'preds'])))
         df_selected = df.sort_values(by=f'scaled_ensemble_variance', ascending=False)
         df_selected = df_selected.head(n=size)
@@ -231,7 +244,7 @@ def run_active_learning(args: ActiveLearningArgs):
         # predict the experimental set
         print('Predicting experimental set...')
 
-        # safe the experimental file because chemprop will only read a csv file
+        # save the experimental file because chemprop will only read a csv file
         df_experimental.to_csv(os.path.join(path_results, f'temp_in.csv'), index=False)
         predict_args = process_predict_args(args, path_results, type='exp')
         print(predict_args)
