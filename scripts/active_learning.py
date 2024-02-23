@@ -63,6 +63,8 @@ def process_predict_args(args, path_results, type, num_fold=None):
         checkpoint_dir = args.save_dir
     if args.data_selection_criterion in ['mve_var', 'mve_var_scaled']:
         uncertainty_method = 'mve'
+    elif args.data_selection_criterion in ['evi_var', 'evi_var_scaled']:
+        uncertainty_method = 'evidential_total'
     elif args.data_selection_criterion in ['random', 'on_the_fly_clustering', 'on_the_fly_clustering_silhouette', 'on_the_fly_clustering_in_cluster_dist_ratio']:
         uncertainty_method = None
     else:
@@ -89,13 +91,13 @@ def select_data(df, criterion, size):
     if criterion == 'random':
         df_selected = df.sample(n=size, random_state=0)
         return df_selected
-    elif criterion == 'ens_var' or criterion == 'mve_var':
+    elif criterion in ['ens_var', 'mve_var', 'evi_var']:
         df_selected = df.sort_values(by='unc', ascending=False)
         df_selected = df_selected.head(n=size)
         return df_selected
-    elif criterion == 'ens_var_scaled' or criterion == 'mve_var_scaled':
-        df['scaled_ensemble_variance'] = df[f'unc'] / (np.abs(df[f'preds']) + np.mean(np.abs(df[f'preds'])))
-        df_selected = df.sort_values(by=f'scaled_ensemble_variance', ascending=False)
+    elif criterion in ['ens_var_scaled', 'mve_var_scaled', 'evi_var_scaled']:
+        df['scaled_variance'] = df[f'unc'] / (np.abs(df[f'preds']) + np.mean(np.abs(df[f'preds'])))
+        df_selected = df.sort_values(by=f'scaled_variance', ascending=False)
         df_selected = df_selected.head(n=size)
         return df_selected
     elif criterion == 'cluster_equal':
