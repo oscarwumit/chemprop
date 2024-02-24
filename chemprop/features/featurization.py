@@ -66,21 +66,16 @@ class Featurization_parameters:
     def __init__(self) -> None:
 
         # Atom feature sizes
-        self.MAX_ATOMIC_NUM = 54
+        self.MAX_ATOMIC_NUM = 12
         self.ATOM_FEATURES = {
-            'atomic_num': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 35, 53, 0],
-            # 'degree': [0, 1, 2, 3, 4, 5],
-            # 'formal_charge': [-1, -2, 1, 2, 0],
-            # 'chiral_tag': [0, 1, 2, 3],
-            # 'num_Hs': [0, 1, 2, 3, 4],
+            'atomic_num': [0, 1, 6, 7, 8, 9, 14, 15, 16, 17, 35, 53],  # ['C', 'O', 'N', 'F', 'S', 'Cl', 'Br', 'P', 'Si', 'H', 'I']
             'H_bond_donor': [0, 1, 2, 3],   #1-3 for N, O and F, 0 if none
             'H_bond_acceptor': [0, 1, 2, 3], #1-3 for N, O and F, 0 if none
             'hybridization': [
+                Chem.rdchem.HybridizationType.S,
                 Chem.rdchem.HybridizationType.SP,
                 Chem.rdchem.HybridizationType.SP2,
                 Chem.rdchem.HybridizationType.SP3,
-                Chem.rdchem.HybridizationType.SP3D,
-                Chem.rdchem.HybridizationType.SP3D2
             ],
         }
 
@@ -91,7 +86,7 @@ class Featurization_parameters:
         self.THREE_D_DISTANCE_BINS = list(range(0, self.THREE_D_DISTANCE_MAX + 1, self.THREE_D_DISTANCE_STEP))
 
         # len(choices) + 1 to include room for uncommon values; + 2 at end for IsAromatic and mass + 7 from line 264 - 270
-        self.ATOM_FDIM = sum(len(choices) + 1 for choices in self.ATOM_FEATURES.values()) + 2 + 7 + 3
+        self.ATOM_FDIM = sum(len(choices) + 1 for choices in self.ATOM_FEATURES.values()) + 2 + 7
         self.EXTRA_ATOM_FDIM = 0
         self.BOND_FDIM = 14
         self.EXTRA_BOND_FDIM = 0
@@ -336,7 +331,7 @@ def atom_features_zeros(atom: Chem.rdchem.Atom) -> List[Union[bool, int, float]]
     if atom is None:
         features = [0] * PARAMS.ATOM_FDIM
     else:
-        features = onek_encoding_unk(atom.GetAtomicNum() - 1, PARAMS.ATOM_FEATURES['atomic_num']) + \
+        features = onek_encoding_unk(atom.GetAtomicNum() if atom.GetAtomicNum() in PARAMS.ATOM_FEATURES['atomic_num'] else 0, PARAMS.ATOM_FEATURES['atomic_num']) + \
             [0] * (PARAMS.ATOM_FDIM - PARAMS.MAX_ATOMIC_NUM - 1) #set other features to zero
     return features
 
@@ -514,11 +509,6 @@ class MolGraph:
                                  f'the extra bond features')
 
         else: # Reaction mode
-            if atom_features_extra is not None:
-                raise NotImplementedError('Extra atom features are currently not supported for reactions')
-            if bond_features_extra is not None:
-                raise NotImplementedError('Extra bond features are currently not supported for reactions')
-
             mol_reac = mol[0]
             mol_prod = mol[1]
             ri2pi, pio, rio = map_reac_to_prod(mol_reac, mol_prod)

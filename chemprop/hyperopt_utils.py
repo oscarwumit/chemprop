@@ -26,18 +26,18 @@ def build_search_space(search_parameters: List[str], train_epochs: int = None) -
             "activation", options=["ReLU", "LeakyReLU", "PReLU", "tanh", "SELU", "ELU"]
         ),
         "aggregation": hp.choice("aggregation", options=["mean", "sum", "norm"]),
-        "aggregation_norm": hp.quniform("aggregation_norm", low=1, high=200, q=1),
-        "batch_size": hp.quniform("batch_size", low=5, high=200, q=5),
-        "depth": hp.quniform("depth", low=2, high=6, q=1),
-        "dropout": hp.quniform("dropout", low=0.0, high=0.1, q=0.05),
-        "ffn_hidden_size": hp.quniform("ffn_hidden_size", low=300, high=2400, q=100),
-        "ffn_num_layers": hp.quniform("ffn_num_layers", low=1, high=3, q=1),
+        "aggregation_norm": hp.quniform("aggregation_norm", low=1, high=100, q=10),
+        "batch_size": hp.quniform("batch_size", low=50, high=300, q=50),
+        "depth": hp.quniform("depth", low=3, high=10, q=1),
+        "dropout": hp.quniform("dropout", low=0.0, high=0.02, q=0.01),
+        "ffn_hidden_size": hp.quniform("ffn_hidden_size", low=1600, high=4800, q=200),
+        "ffn_num_layers": hp.quniform("ffn_num_layers", low=2, high=5, q=1),
         "final_lr_ratio": hp.loguniform("final_lr_ratio", low=np.log(1e-4), high=0.),
-        "hidden_size": hp.quniform("hidden_size", low=300, high=2400, q=100),
+        "hidden_size": hp.quniform("hidden_size", low=1600, high=4800, q=200),
         "init_lr_ratio": hp.loguniform("init_lr_ratio", low=np.log(1e-4), high=0.),
-        "linked_hidden_size": hp.quniform("linked_hidden_size", low=300, high=2400, q=100),
+        # "linked_hidden_size": hp.quniform("linked_hidden_size", low=300, high=2400, q=100),
         "max_lr": hp.loguniform("max_lr", low=np.log(1e-6), high=np.log(1e-2)),
-        "warmup_epochs": hp.quniform("warmup_epochs", low=1, high=train_epochs // 2, q=1)
+        "warmup_epochs": hp.quniform("warmup_epochs", low=10, high=train_epochs // 2, q=1)
     }
     space = {}
     for key in search_parameters:
