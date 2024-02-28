@@ -264,8 +264,13 @@ def run_active_learning(args: ActiveLearningArgs):
             df_fp = pd.read_csv(os.path.join(path_results, f'fp_train.csv'))
 
             for model_idx in range(args.ensemble_size):
-                df_temp = pd.DataFrame(df_fp, columns=[c for c in df_fp.columns if
-                                                    f'mol_{args.fingerprint_idx}_model_{model_idx}' in c])
+
+                if args.ensemble_size > 1:
+                    columns = [c for c in df_fp.columns if f'mol_{args.fingerprint_idx}_model_{model_idx}' in c]
+                else:
+                    columns = [c for c in df_fp.columns if f'mol_{args.fingerprint_idx}' in c]
+
+                df_temp = pd.DataFrame(df_fp, columns=columns)
                 if args.use_pca_for_clustering:
                     pca = PCA(n_components=n_components)
                     components = pca.fit_transform(df_temp)
