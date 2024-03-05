@@ -156,6 +156,7 @@ def select_data(df, criterion, size):
                 size_to_add = round(c_factor/sum_factors*size_per_model)
                 df_temp = df_temp.head(n=size_to_add)
                 df_selected = pd.concat([df_selected, df_temp])
+        return df_selected
     else:
         return ValueError(f'criterion {criterion} not in defined list')
 
@@ -269,6 +270,8 @@ def run_active_learning(args: ActiveLearningArgs):
                     columns = [c for c in df_fp.columns if f'mol_{args.fingerprint_idx}_model_{model_idx}' in c]
                 else:
                     columns = [c for c in df_fp.columns if f'mol_{args.fingerprint_idx}' in c]
+                print(columns)
+                print(df_fp.columns)
 
                 df_temp = pd.DataFrame(df_fp, columns=columns)
                 if args.use_pca_for_clustering:
@@ -284,8 +287,12 @@ def run_active_learning(args: ActiveLearningArgs):
                 max_in_cluster_dists = np.array([np.min(cdist(for_clustering[kmeanModel.labels_==i], kmeanModel.cluster_centers_[[i]])) for i in range(args.number_of_clusters)])
 
                 # apply clustering
-                df_temp_exp = pd.DataFrame(df_fp_exp, columns=[c for c in df_fp_exp.columns if
-                                                            f'mol_{args.fingerprint_idx}_model_{model_idx}' in c])
+                if args.ensemble_size > 1:
+                    columns = [c for c in df_fp_exp.columns if f'mol_{args.fingerprint_idx}_model_{model_idx}' in c]
+                else:
+                    columns = [c for c in df_fp_exp.columns if f'mol_{args.fingerprint_idx}' in c]
+
+                df_temp_exp = pd.DataFrame(df_fp_exp, columns=columns)
                 if args.use_pca_for_clustering:
                     components = pca.transform(df_temp_exp)
                     for i in range(components.shape[1]):
