@@ -7,6 +7,7 @@ import pickle
 
 from scipy.spatial.distance import cdist
 from sklearn.cluster import KMeans
+from sklearn.neighbors import NearestNeighbors
 from sklearn.decomposition import PCA
 
 from chemprop.args import TrainArgs, PredictArgs, get_checkpoint_paths, FingerprintArgs, ActiveLearningArgs
@@ -64,8 +65,8 @@ def process_predict_args(args, path_results, type, num_fold=None):
     if args.data_selection_criterion in ['mve_var', 'mve_var_scaled']:
         uncertainty_method = 'mve'
     elif args.data_selection_criterion in ['evi_var', 'evi_var_scaled']:
-        uncertainty_method = 'evidential_total'
-    elif args.data_selection_criterion in ['random', 'on_the_fly_clustering', 'on_the_fly_clustering_silhouette', 'on_the_fly_clustering_in_cluster_dist_ratio']:
+        uncertainty_method = 'evidential_epistemic'
+    elif args.data_selection_criterion in ['random', 'on_the_fly_clustering', 'on_the_fly_clustering_silhouette', 'on_the_fly_clustering_in_cluster_dist_ratio', 'latent_dist']:
         uncertainty_method = None
     else:
         uncertainty_method = 'ensemble'
@@ -98,6 +99,10 @@ def select_data(df, criterion, size):
     elif criterion in ['ens_var_scaled', 'mve_var_scaled', 'evi_var_scaled']:
         df['scaled_variance'] = df[f'unc'] / (np.abs(df[f'preds']) + np.mean(np.abs(df[f'preds'])))
         df_selected = df.sort_values(by=f'scaled_variance', ascending=False)
+        df_selected = df_selected.head(n=size)
+        return df_selected
+    elif criterion == 'latent_dist':
+        df_selected = df.sort_values(by='avg_min_dist', ascending=False)
         df_selected = df_selected.head(n=size)
         return df_selected
     elif criterion == 'cluster_equal':
@@ -254,7 +259,7 @@ def run_active_learning(args: ActiveLearningArgs):
         preds, unc = make_predictions(args=predict_args, return_uncertainty=True)
         df_experimental[f'preds'] = np.ravel(preds)
         df_experimental[f'unc'] = np.ravel(unc)
-        if 'on_the_fly_clustering' in data_selection_criterion:
+        if 'on_the_fly_clustering' in data_selection_criterion or 'latent_dist' in data_selection_criterion:
             # make the fingerprints for the exp data
             fingerprint_args = process_predict_args(args, path_results, type='fp_exp')
             molecule_fingerprint(args=fingerprint_args)
@@ -264,14 +269,14 @@ def run_active_learning(args: ActiveLearningArgs):
             molecule_fingerprint(args=fingerprint_args)
             df_fp = pd.read_csv(os.path.join(path_results, f'fp_train.csv'))
 
+        if 'on_the_fly_clustering' in data_selection_criterion:
+
             for model_idx in range(args.ensemble_size):
 
                 if args.ensemble_size > 1:
                     columns = [c for c in df_fp.columns if f'mol_{args.fingerprint_idx}_model_{model_idx}' in c]
                 else:
                     columns = [c for c in df_fp.columns if f'mol_{args.fingerprint_idx}' in c]
-                print(columns)
-                print(df_fp.columns)
 
                 df_temp = pd.DataFrame(df_fp, columns=columns)
                 if args.use_pca_for_clustering:
@@ -334,6 +339,33 @@ def run_active_learning(args: ActiveLearningArgs):
             elif data_selection_criterion == 'on_the_fly_clustering_in_cluster_dist_ratio':
                 columns = [f'in_cluster_dist_ratio_{model_idx}' for model_idx in range(args.ensemble_size)]
                 df_experimental[f'avg_in_cluster_dist_ratio'] = df_experimental[columns].sum(axis=1)
+
+        else:
+
+            for model_idx in range(args.ensemble_size):
+
+                if args.ensemble_size > 1:
+                    columns = [c for c in df_fp.columns if f'mol_{args.fingerprint_idx}_model_{model_idx}' in c]
+                else:
+                    columns = [c for c in df_fp.columns if f'mol_{args.fingerprint_idx}' in c]
+
+                df_temp = pd.DataFrame(df_fp, columns=columns)
+                
+                if args.ensemble_size > 1:
+                    columns = [c for c in df_fp_exp.columns if f'mol_{args.fingerprint_idx}_model_{model_idx}' in c]
+                else:
+                    columns = [c for c in df_fp_exp.columns if f'mol_{args.fingerprint_idx}' in c]
+
+                df_temp_exp = pd.DataFrame(df_fp_exp, columns=columns)
+
+                cdists = cdist(df_temp, df_temp_exp, 'euclidean')
+                min_inds = np.argmin(cdists, axis=0)
+                knn_min_dists = np.mean(cdists[min_inds[:args.number_of_knn], :], axis=0)
+                df_experimental[f'min_dist_{model_idx}'] = knn_min_dists
+
+            columns = [f'min_dist_{model_idx}' for model_idx in range(args.ensemble_size)]
+            df_experimental[f'avg_min_dist'] = df_experimental[columns].sum(axis=1)
+            
 
         # predict the test set
         print('Predicting test set...')

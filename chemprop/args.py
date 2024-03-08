@@ -1057,13 +1057,16 @@ class ActiveLearningArgs(TrainArgs):
     """:class:`ActiveLearningArgs` includes :class:`TrainArgs` along with additional arguments used for active learning."""
     active_learning_steps: int = 10
     """Number of steps in the active learning loop"""
-    data_selection_criterion: Literal['random', 'ens_var', 'ens_var_scaled', 'mve_var', 'mve_var_scaled', 'evi_var', 'evi_var_scaled', 'cluster_equal', 'cluster_weight', 'on_the_fly_clustering', 'on_the_fly_clustering_silhouette', 'on_the_fly_clustering_in_cluster_dist_ratio', 'on_the_fly_clustering_weight', 'error_calibration_cluster', 'error_calibration_learning']
+    data_selection_criterion: Literal['random', 'ens_var', 'ens_var_scaled', 'mve_var', 'mve_var_scaled', 'evi_var', 'evi_var_scaled', 'latent_dist', 'cluster_equal', 'cluster_weight', 'on_the_fly_clustering', 'on_the_fly_clustering_silhouette', 'on_the_fly_clustering_in_cluster_dist_ratio', 'on_the_fly_clustering_weight', 'error_calibration_cluster', 'error_calibration_learning']
     """Criterion to select data"""
     """random: random selection of new data from experimental set"""
     """mve_var: selection based on highest variance from model variance estimation"""
     """mve_var_scaled: selection based on highest scaled variance from model variance estimation"""
     """ens_var: selection based on highest ensemble variance"""
     """ens_var_scaled: selection based on highest scaled ensemble variance"""
+    """evi_var: selection based on highest variance from evidential variance estimation"""
+    """evi_var_scaled: selection based on highest scaled variance from evidential variance estimation"""
+    """latent_dist: selection based on largest k-NN latent distance"""
     """cluster_equal: selection based on highest ensemble variance with equal distribution from a priori clustering """
     """cluster_weight: selection based on highest ensemble variance with weighted distribution from a priori clustering based on cluster ensemble variance """
     """on_the_fly_clustering: based on on-the-fly clustering of latent representation"""
@@ -1082,6 +1085,8 @@ class ActiveLearningArgs(TrainArgs):
     """Fraction of explained variance for on-the-fly clustering. Number of PC is selected to explain greater than the specified percentage of variances. 0 < pca_fraction_of_variance_explained < 1."""
     number_of_clusters: int = 10
     """Number of clusters for on-the-fly clustering"""
+    number_of_knn: int = 8
+    """Number of nearest neighbors for latent distance"""
     data_selection_fixed_amount: int = None
     """Number of datapoints to be added if a fixed number"""
     data_selection_variable_amount: float = 0.1
