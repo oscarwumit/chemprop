@@ -340,7 +340,7 @@ def run_active_learning(args: ActiveLearningArgs):
                 columns = [f'in_cluster_dist_ratio_{model_idx}' for model_idx in range(args.ensemble_size)]
                 df_experimental[f'avg_in_cluster_dist_ratio'] = df_experimental[columns].sum(axis=1)
 
-        else:
+        elif 'latent_dist' in data_selection_criterion:
 
             for model_idx in range(args.ensemble_size):
 
@@ -358,9 +358,15 @@ def run_active_learning(args: ActiveLearningArgs):
 
                 df_temp_exp = pd.DataFrame(df_fp_exp, columns=columns)
 
-                cdists = cdist(df_temp, df_temp_exp, 'euclidean')
-                min_inds = np.argmin(cdists, axis=0)
-                knn_min_dists = np.mean(cdists[min_inds[:args.number_of_knn], :], axis=0)
+                # Fit NearestNeighbors model
+                nbrs = NearestNeighbors(n_neighbors=args.number_of_knn).fit(df_temp)
+
+                # Find indices and distances of nearest neighbors
+                distances, _ = nbrs.kneighbors(df_temp_exp)
+
+                # Calculate mean distances
+                knn_min_dists = np.mean(distances, axis=1)
+                
                 df_experimental[f'min_dist_{model_idx}'] = knn_min_dists
 
             columns = [f'min_dist_{model_idx}' for model_idx in range(args.ensemble_size)]
