@@ -89,7 +89,11 @@ def process_predict_args(args, path_results, type, num_fold=None):
 
 
 def select_data(df, criterion, size):
-    if criterion == 'random':
+    if credits == 'oracle':
+        df_selected = df.sort_values(by='err', ascending=False)
+        df_selected = df_selected.head(n=size)
+        return df_selected
+    elif criterion == 'random':
         df_selected = df.sample(n=size, random_state=0)
         return df_selected
     elif criterion in ['ens_var', 'mve_var', 'evi_var']:
@@ -259,6 +263,10 @@ def run_active_learning(args: ActiveLearningArgs):
         preds, unc = make_predictions(args=predict_args, return_uncertainty=True)
         df_experimental[f'preds'] = np.ravel(preds)
         df_experimental[f'unc'] = np.ravel(unc)
+
+        if 'oracle' in data_selection_criterion:
+            df_experimental['err'] = np.abs(df_experimental['preds'] - df_experimental[args.target_columns[0]])
+
         if 'on_the_fly_clustering' in data_selection_criterion or 'latent_dist' in data_selection_criterion:
             # make the fingerprints for the exp data
             fingerprint_args = process_predict_args(args, path_results, type='fp_exp')

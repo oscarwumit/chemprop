@@ -1057,8 +1057,9 @@ class ActiveLearningArgs(TrainArgs):
     """:class:`ActiveLearningArgs` includes :class:`TrainArgs` along with additional arguments used for active learning."""
     active_learning_steps: int = 10
     """Number of steps in the active learning loop"""
-    data_selection_criterion: Literal['random', 'ens_var', 'ens_var_scaled', 'mve_var', 'mve_var_scaled', 'evi_var', 'evi_var_scaled', 'latent_dist', 'cluster_equal', 'cluster_weight', 'on_the_fly_clustering', 'on_the_fly_clustering_silhouette', 'on_the_fly_clustering_in_cluster_dist_ratio', 'on_the_fly_clustering_weight', 'error_calibration_cluster', 'error_calibration_learning']
+    data_selection_criterion: Literal['oracle', 'random', 'ens_var', 'ens_var_scaled', 'mve_var', 'mve_var_scaled', 'evi_var', 'evi_var_scaled', 'latent_dist', 'cluster_equal', 'cluster_weight', 'on_the_fly_clustering', 'on_the_fly_clustering_silhouette', 'on_the_fly_clustering_in_cluster_dist_ratio', 'on_the_fly_clustering_weight', 'error_calibration_cluster', 'error_calibration_learning']
     """Criterion to select data"""
+    """oracle: selection based on oracle (perfect uncertainty estimation)"""
     """random: random selection of new data from experimental set"""
     """mve_var: selection based on highest variance from model variance estimation"""
     """mve_var_scaled: selection based on highest scaled variance from model variance estimation"""
