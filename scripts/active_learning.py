@@ -66,7 +66,7 @@ def process_predict_args(args, path_results, type, num_fold=None):
         uncertainty_method = 'mve'
     elif args.data_selection_criterion in ['evi_var', 'evi_var_scaled']:
         uncertainty_method = 'evidential_epistemic'
-    elif args.data_selection_criterion in ['random', 'on_the_fly_clustering', 'on_the_fly_clustering_silhouette', 'on_the_fly_clustering_in_cluster_dist_ratio', 'latent_dist']:
+    elif args.data_selection_criterion in ['oracle', 'random', 'on_the_fly_clustering', 'on_the_fly_clustering_silhouette', 'on_the_fly_clustering_in_cluster_dist_ratio', 'latent_dist']:
         uncertainty_method = None
     else:
         uncertainty_method = 'ensemble'
