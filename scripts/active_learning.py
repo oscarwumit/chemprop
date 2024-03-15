@@ -89,7 +89,7 @@ def process_predict_args(args, path_results, type, num_fold=None):
 
 
 def select_data(df, criterion, size):
-    if credits == 'oracle':
+    if criterion == 'oracle':
         df_selected = df.sort_values(by='err', ascending=False)
         df_selected = df_selected.head(n=size)
         return df_selected
@@ -167,7 +167,7 @@ def select_data(df, criterion, size):
                 df_selected = pd.concat([df_selected, df_temp])
         return df_selected
     else:
-        return ValueError(f'criterion {criterion} not in defined list')
+        raise ValueError(f'criterion {criterion} not in defined list')
 
 
 def run_active_learning(args: ActiveLearningArgs):
@@ -265,7 +265,7 @@ def run_active_learning(args: ActiveLearningArgs):
         df_experimental[f'unc'] = np.ravel(unc)
 
         if 'oracle' in data_selection_criterion:
-            df_experimental['err'] = np.abs(df_experimental['preds'] - df_experimental[args.target_columns[0]])
+            df_experimental['err'] = np.abs(df_experimental['preds'] - df_experimental['Gsolv (kcal/mol)'])
 
         if 'on_the_fly_clustering' in data_selection_criterion or 'latent_dist' in data_selection_criterion:
             # make the fingerprints for the exp data
