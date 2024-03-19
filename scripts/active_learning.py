@@ -178,6 +178,7 @@ def run_active_learning(args: ActiveLearningArgs):
     data_selection_variable_amount = args.data_selection_variable_amount
     fixed_experimental_size = args.fixed_experimental_size
     variable_experimental_size_factor = args.variable_experimental_size_factor
+
     if "on_the_fly_clustering" in data_selection_criterion:
         if args.use_pca_for_clustering:
             if args.pca_number_of_components is None and args.pca_fraction_of_variance_explained is None:
@@ -196,14 +197,34 @@ def run_active_learning(args: ActiveLearningArgs):
     path_results = args.save_dir
     if not os.path.exists(path_results):
         os.mkdir(path_results)
-    df_training = pd.read_csv(args.data_path)
-    df_experimental_all = pd.read_csv(args.path_experimental)
-    # double check here are no duplicates in experimental data. Assume there are no duplicates in training and test
-    df_experimental_all = df_experimental_all.drop_duplicates(keep=False)
-    if args.path_test is not None:
-        df_test = pd.read_csv(args.path_test)
+    
+    # check restart
+    test_results_path = os.path.join(path_results, f'test_results.pickle')
+    path_training = os.path.join(path_results, f'training_temp.csv')
+    path_experimental_results = os.path.join(path_results, f'experimental_results.pickle')
+    if os.path.exists(test_results_path) and os.path.exists(path_training) and os.path.exists(path_experimental_results):
+        with open(test_results_path, 'rb') as f:
+            df_test = pickle.load(f)
 
-    df_experimental_all_results = pd.DataFrame()
+        df_training = pd.read_csv(path_training)
+
+        with open(path_experimental_results, 'rb') as f:
+            df_experimental_all_results = pickle.load(f)
+
+        df_experimental_all = df_experimental_all_results[df_experimental_all_results['run'].isnull()]
+
+        df_experimental_all_results = df_experimental_all_results.dropna(subset=['run'])
+
+    else:
+        df_training = pd.read_csv(args.data_path)
+        df_experimental_all = pd.read_csv(args.path_experimental)
+
+        # double check here are no duplicates in experimental data. Assume there are no duplicates in training and test
+        df_experimental_all = df_experimental_all.drop_duplicates(keep=False)
+        if args.path_test is not None:
+            df_test = pd.read_csv(args.path_test)
+
+        df_experimental_all_results = pd.DataFrame()
 
     #todo, this can easily cause errors when other arguments are added. Be careful! And maybe change this to a better way
     if 'cluster' in data_selection_criterion and not 'clustering' in data_selection_criterion:
@@ -216,6 +237,10 @@ def run_active_learning(args: ActiveLearningArgs):
 
     for al_run in range(active_learning_steps):
         print(f'Active learning run {al_run} of {active_learning_steps}...')
+
+        if f'preds_run{al_run}' in df_test.columns:
+            print(f'Active learning run {al_run} already done, skipping...')
+            continue
         
         size_training = len(df_training.index)
         size_data_selection = int(data_selection_fixed_amount) if data_selection_fixed_amount \
@@ -399,15 +424,18 @@ def run_active_learning(args: ActiveLearningArgs):
         args.data_path = path_training
         df_experimental_all = pd.concat([df_experimental_all, df_selected, df_selected], join='inner').drop_duplicates(keep=False)
         df_experimental_all_results = pd.concat([df_experimental_all_results, df_selected])
-        print('run completed')
-        if (al_run+1) % (args.active_learning_steps/5) == 0:
-            df_experimental_all_results_temp = pd.concat([df_experimental_all_results, df_experimental_all])
-            with open(os.path.join(path_results, f'experimental_results.pickle'), 'wb') as f:
-                pickle.dump(df_experimental_all_results_temp, f)
-            if "on_the_fly_clustering" in data_selection_criterion:
-                clustering_results[al_run] = (df_fp, df_fp_exp)
-                with open(os.path.join(path_results, f'clustering_results.pickle'), 'wb') as f:
-                    pickle.dump(clustering_results, f)
+
+        df_experimental_all_results_temp = pd.concat([df_experimental_all_results, df_experimental_all])
+        with open(os.path.join(path_results, f'experimental_results.pickle'), 'wb') as f:
+            pickle.dump(df_experimental_all_results_temp, f)
+        if "on_the_fly_clustering" in data_selection_criterion:
+            clustering_results[al_run] = (df_fp, df_fp_exp)
+            with open(os.path.join(path_results, f'clustering_results.pickle'), 'wb') as f:
+                pickle.dump(clustering_results, f)
+
+        print(f'Active learning run {al_run} of {active_learning_steps} done!')
+
+    print('Active learning done!')
 
 
 def active_learning() -> None:
