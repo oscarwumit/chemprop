@@ -259,7 +259,6 @@ def run_active_learning(args: ActiveLearningArgs):
         # save the experimental file because chemprop will only read a csv file
         df_experimental.to_csv(os.path.join(path_results, f'temp_in.csv'), index=False)
         predict_args = process_predict_args(args, path_results, type='exp')
-        print(predict_args)
         preds, unc = make_predictions(args=predict_args, return_uncertainty=True)
         df_experimental[f'preds'] = np.ravel(preds)
         df_experimental[f'unc'] = np.ravel(unc)
@@ -385,7 +384,6 @@ def run_active_learning(args: ActiveLearningArgs):
         print('Predicting test set...')
         if args.path_test is not None:
             predict_args = process_predict_args(args, path_results, type='test')
-            print(predict_args)
             preds, unc = make_predictions(args=predict_args, return_uncertainty=True)
             df_test[f'preds_run{al_run}'] = np.ravel(preds)
             df_test[f'unc_run{al_run}'] = np.ravel(unc)
