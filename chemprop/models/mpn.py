@@ -250,7 +250,15 @@ class MPN(nn.Module):
                 atom_descriptors_batch: List[np.ndarray] = None,
                 atom_features_batch: List[np.ndarray] = None,
                 bond_descriptors_batch: List[np.ndarray] = None,
-                bond_features_batch: List[np.ndarray] = None) -> torch.Tensor:
+                bond_features_batch: List[np.ndarray] = None,
+                shap: bool = False,
+                extra_keep_features_batch: List[List[bool]] = None,
+                extra_atom_keep_descriptors_batch: List[List[bool]] = None,
+                extra_bond_keep_descriptors_batch: List[List[bool]] = None,
+                extra_atom_keep_features_batch: List[List[bool]] = None,
+                extra_bond_keep_features_batch: List[List[bool]] = None,
+                chemprop_atom_keep_features: List[bool] = None,
+                chemprop_bond_keep_features: List[bool] = None,) -> torch.Tensor:
         """
         Encodes a batch of molecules.
 
@@ -275,13 +283,20 @@ class MPN(nn.Module):
                     raise NotImplementedError('Atom/bond descriptors are currently only supported with one molecule '
                                               'per input (i.e., number_of_molecules = 1).')
 
+                if shap:
+                    if extra_atom_keep_features_batch is not None:
+                        atom_features_batch = mask_features_extra_batch(atom_features_batch, extra_atom_keep_features_batch)
+
                 batch = [
                     mol2graph(
                         mols=b,
                         atom_features_batch=atom_features_batch,
                         bond_features_batch=bond_features_batch,
                         overwrite_default_atom_features=self.overwrite_default_atom_features,
-                        overwrite_default_bond_features=self.overwrite_default_bond_features
+                        overwrite_default_bond_features=self.overwrite_default_bond_features,
+                        shap=shap,
+                        chemprop_atom_keep_features=chemprop_atom_keep_features,
+                        chemprop_bond_keep_features=chemprop_bond_keep_features
                     )
                     for b in batch
                 ]
@@ -289,13 +304,20 @@ class MPN(nn.Module):
                 if len(batch) > 1:
                     raise NotImplementedError('Atom/bond descriptors are currently only supported with one molecule '
                                               'per input (i.e., number_of_molecules = 1).')
+                
+                if shap:
+                    if extra_bond_keep_features_batch is not None:
+                        bond_features_batch = mask_features_extra_batch(bond_features_batch, extra_bond_keep_features_batch)
 
                 batch = [
                     mol2graph(
                         mols=b,
                         bond_features_batch=bond_features_batch,
                         overwrite_default_atom_features=self.overwrite_default_atom_features,
-                        overwrite_default_bond_features=self.overwrite_default_bond_features
+                        overwrite_default_bond_features=self.overwrite_default_bond_features,
+                        shap=shap,
+                        chemprop_atom_keep_features=chemprop_atom_keep_features,
+                        chemprop_bond_keep_features=chemprop_bond_keep_features
                     )
                     for b in batch
                 ]
@@ -303,6 +325,10 @@ class MPN(nn.Module):
                 batch = [mol2graph(b) for b in batch]
 
         if self.use_input_features:
+            if shap:
+                if extra_keep_features_batch is not None:
+                    features_batch = mask_features_extra_batch(features_batch, extra_keep_features_batch)
+
             features_batch = torch.from_numpy(np.stack(features_batch)).float().to(self.device)
 
             if self.features_only:
@@ -312,6 +338,12 @@ class MPN(nn.Module):
             if len(batch) > 1:
                 raise NotImplementedError('Atom descriptors are currently only supported with one molecule '
                                           'per input (i.e., number_of_molecules = 1).')
+            
+            if shap:
+                if extra_atom_keep_descriptors_batch is not None:
+                    atom_descriptors_batch = mask_features_extra_batch(atom_descriptors_batch, extra_atom_keep_descriptors_batch)
+                if extra_bond_keep_descriptors_batch is not None:
+                    bond_descriptors_batch = mask_features_extra_batch(bond_descriptors_batch, extra_bond_keep_descriptors_batch)
 
             encodings = [enc(ba, atom_descriptors_batch, bond_descriptors_batch) for enc, ba in zip(self.encoder, batch)]
         else:
@@ -334,3 +366,39 @@ class MPN(nn.Module):
             output = torch.cat([output, features_batch], dim=1)
 
         return output
+    
+def mask_features_extra_batch(features_extra_batch: List[np.ndarray], keep_features_batch: List[List[bool]], feature_length: int = 50) -> List[np.ndarray]:
+    """
+    Masks certain features in each np.ndarray in features_extra_batch based on the corresponding boolean vector in keep_features_batch.
+
+    :param features_extra_batch: A list of 2D numpy arrays, each with shape (num_atoms, feature_length) where feature_length is a multiple of 50.
+    :param keep_features_batch: A list of lists of boolean vectors, each indicating which features to keep for the corresponding np.ndarray in features_extra_batch.
+    :return: A list of masked 2D numpy arrays with the same shapes as the corresponding entries in features_extra_batch.
+    """
+    return [mask_features_extra(features_extra, keep_features, feature_length) for features_extra, keep_features in zip(features_extra_batch, keep_features_batch)]
+
+def mask_features_extra(features_extra: np.ndarray, keep_features: List[bool], feature_length: int = 50) -> np.ndarray:
+    """
+    Masks certain features in features_extra(atom/bond) based on the keep_features boolean vector.
+
+    :param features_extra: A 2D numpy array with shape (num_atoms or num_bonds, feature_vector) where feature_vector is a multiple of feature_length.
+    :param keep_features: A boolean vector indicating which features to keep.
+    :return: A masked 2D numpy array with the same shape as features_extra.
+    """
+    _, feature_vector = features_extra.shape
+    num_features = feature_vector // feature_length  # Each feature has length 50
+
+    if len(keep_features) != num_features:
+        raise ValueError("Length of keep_features does not match the number of features in features_extra.")
+
+    # Create a mask to apply to features_extra
+    mask = np.ones_like(features_extra)
+
+    for i, keep in enumerate(keep_features):
+        if not keep:
+            mask[:, i*50:(i+1)*50] = 0
+
+    # Apply the mask to features_extra
+    masked_features = features_extra * mask
+
+    return masked_features

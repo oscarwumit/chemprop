@@ -202,27 +202,69 @@ def onek_encoding_unk(value: int, choices: List[int]) -> List[int]:
     return encoding
 
 
-def atom_features(atom: Chem.rdchem.Atom, functional_groups: List[int] = None) -> List[Union[bool, int, float]]:
+# def atom_features(atom: Chem.rdchem.Atom, functional_groups: List[int] = None) -> List[Union[bool, int, float]]:
+#     """
+#     Builds a feature vector for an atom.
+
+#     :param atom: An RDKit atom.
+#     :param functional_groups: A k-hot vector indicating the functional groups the atom belongs to.
+#     :return: A list containing the atom features.
+#     """
+#     if atom is None:
+#         features = [0] * PARAMS.ATOM_FDIM
+#     else:
+#         features = onek_encoding_unk(atom.GetAtomicNum() - 1, PARAMS.ATOM_FEATURES['atomic_num']) + \
+#             onek_encoding_unk(atom.GetTotalDegree(), PARAMS.ATOM_FEATURES['degree']) + \
+#             onek_encoding_unk(atom.GetFormalCharge(), PARAMS.ATOM_FEATURES['formal_charge']) + \
+#             onek_encoding_unk(int(atom.GetChiralTag()), PARAMS.ATOM_FEATURES['chiral_tag']) + \
+#             onek_encoding_unk(int(atom.GetTotalNumHs()), PARAMS.ATOM_FEATURES['num_Hs']) + \
+#             onek_encoding_unk(int(atom.GetHybridization()), PARAMS.ATOM_FEATURES['hybridization']) + \
+#             [1 if atom.GetIsAromatic() else 0] + \
+#             [atom.GetMass() * 0.01]  # scaled to about the same range as other features
+#         if functional_groups is not None:
+#             features += functional_groups
+#     return features
+
+
+def atom_features(atom: Chem.rdchem.Atom, keep_features: List[bool] = None, shap: bool = False, functional_groups: List[int] = None) -> List[Union[bool, int, float]]:
     """
     Builds a feature vector for an atom.
 
     :param atom: An RDKit atom.
+    :param keep_features: A boolean vector indicating which features to keep.
+    :param shap: Boolean to indicate if the featurization is for SHAP analysis.
     :param functional_groups: A k-hot vector indicating the functional groups the atom belongs to.
     :return: A list containing the atom features.
     """
+    if not shap or keep_features is None:
+        keep_features = [True]*8
+
     if atom is None:
-        features = [0] * PARAMS.ATOM_FDIM
-    else:
-        features = onek_encoding_unk(atom.GetAtomicNum() - 1, PARAMS.ATOM_FEATURES['atomic_num']) + \
-            onek_encoding_unk(atom.GetTotalDegree(), PARAMS.ATOM_FEATURES['degree']) + \
-            onek_encoding_unk(atom.GetFormalCharge(), PARAMS.ATOM_FEATURES['formal_charge']) + \
-            onek_encoding_unk(int(atom.GetChiralTag()), PARAMS.ATOM_FEATURES['chiral_tag']) + \
-            onek_encoding_unk(int(atom.GetTotalNumHs()), PARAMS.ATOM_FEATURES['num_Hs']) + \
-            onek_encoding_unk(int(atom.GetHybridization()), PARAMS.ATOM_FEATURES['hybridization']) + \
-            [1 if atom.GetIsAromatic() else 0] + \
-            [atom.GetMass() * 0.01]  # scaled to about the same range as other features
-        if functional_groups is not None:
-            features += functional_groups
+        return [0] * PARAMS.ATOM_FDIM
+
+    # Define features and their corresponding keep flags
+    feature_constructors = [
+        (lambda atom: onek_encoding_unk(atom.GetAtomicNum() - 1, PARAMS.ATOM_FEATURES['atomic_num']), 0),
+        (lambda atom: onek_encoding_unk(atom.GetTotalDegree(), PARAMS.ATOM_FEATURES['degree']), 1),
+        (lambda atom: onek_encoding_unk(atom.GetFormalCharge(), PARAMS.ATOM_FEATURES['formal_charge']), 2),
+        (lambda atom: onek_encoding_unk(int(atom.GetChiralTag()), PARAMS.ATOM_FEATURES['chiral_tag']), 3),
+        (lambda atom: onek_encoding_unk(int(atom.GetTotalNumHs()), PARAMS.ATOM_FEATURES['num_Hs']), 4),
+        (lambda atom: onek_encoding_unk(int(atom.GetHybridization()), PARAMS.ATOM_FEATURES['hybridization']), 5),
+        (lambda atom: [1 if atom.GetIsAromatic() else 0], 6),
+        (lambda atom: [atom.GetMass() * 0.01], 7)
+    ]
+
+    # Build features based on keep_features
+    features = []
+    for constructor, flag_index in feature_constructors:
+        feature = constructor(atom)
+        if not keep_features[flag_index]:
+            feature = [0] * len(feature)
+        features.extend(feature)
+
+    if functional_groups is not None:
+        features.extend(functional_groups)
+
     return features
 
 
@@ -241,27 +283,62 @@ def atom_features_zeros(atom: Chem.rdchem.Atom) -> List[Union[bool, int, float]]
     return features
 
 
-def bond_features(bond: Chem.rdchem.Bond) -> List[Union[bool, int, float]]:
+# def bond_features(bond: Chem.rdchem.Bond) -> List[Union[bool, int, float]]:
+#     """
+#     Builds a feature vector for a bond.
+
+#     :param bond: An RDKit bond.
+#     :return: A list containing the bond features.
+#     """
+#     if bond is None:
+#         fbond = [1] + [0] * (PARAMS.BOND_FDIM - 1)
+#     else:
+#         bt = bond.GetBondType()
+#         fbond = [
+#             0,  # bond is not None
+#             bt == Chem.rdchem.BondType.SINGLE,
+#             bt == Chem.rdchem.BondType.DOUBLE,
+#             bt == Chem.rdchem.BondType.TRIPLE,
+#             bt == Chem.rdchem.BondType.AROMATIC,
+#             (bond.GetIsConjugated() if bt is not None else 0),
+#             (bond.IsInRing() if bt is not None else 0)
+#         ]
+#         fbond += onek_encoding_unk(int(bond.GetStereo()), list(range(6)))
+#     return fbond
+
+
+def bond_features(bond: Chem.rdchem.Bond, keep_features: List[bool] = None, shap: bool = False) -> List[Union[bool, int, float]]:
     """
     Builds a feature vector for a bond.
 
     :param bond: An RDKit bond.
+    :param keep_features: A boolean vector indicating which features to keep.
+    :param shap: Boolean to indicate if the featurization is for SHAP analysis.
     :return: A list containing the bond features.
     """
+    if not shap or keep_features is None:
+        keep_features = [True]*4
+
     if bond is None:
         fbond = [1] + [0] * (PARAMS.BOND_FDIM - 1)
     else:
         bt = bond.GetBondType()
-        fbond = [
-            0,  # bond is not None
-            bt == Chem.rdchem.BondType.SINGLE,
-            bt == Chem.rdchem.BondType.DOUBLE,
-            bt == Chem.rdchem.BondType.TRIPLE,
-            bt == Chem.rdchem.BondType.AROMATIC,
-            (bond.GetIsConjugated() if bt is not None else 0),
-            (bond.IsInRing() if bt is not None else 0)
+        fbond = [0] # bond is not None
+        bond_features_list = [
+            (lambda bond: [bt == Chem.rdchem.BondType.SINGLE], 0),
+            (lambda bond: [bt == Chem.rdchem.BondType.DOUBLE], 0),
+            (lambda bond: [bt == Chem.rdchem.BondType.TRIPLE], 0),
+            (lambda bond: [bt == Chem.rdchem.BondType.AROMATIC], 0),
+            (lambda bond: [(bond.GetIsConjugated() if bt is not None else 0)], 1),
+            (lambda bond: [(bond.IsInRing() if bt is not None else 0)], 2),
+            (lambda bond: onek_encoding_unk(int(bond.GetStereo()), list(range(6))), 3)
         ]
-        fbond += onek_encoding_unk(int(bond.GetStereo()), list(range(6)))
+        for constructor, flag_index in bond_features_list:
+            feature = constructor(bond)
+            if not keep_features[flag_index]:
+                feature = [0] * len(feature)
+            fbond.extend(feature)
+
     return fbond
 
 
@@ -325,13 +402,18 @@ class MolGraph:
                  atom_features_extra: np.ndarray = None,
                  bond_features_extra: np.ndarray = None,
                  overwrite_default_atom_features: bool = False,
-                 overwrite_default_bond_features: bool = False):
+                 overwrite_default_bond_features: bool = False,
+                 shap: bool = False,
+                 chemprop_atom_keep_features: List[bool] = None,
+                 chemprop_bond_keep_features: List[bool] = None,
+                 ) -> None:
         """
         :param mol: A SMILES or an RDKit molecule.
-        :param atom_features_extra: A list of 2D numpy array containing additional atom features to featurize the molecule.
-        :param bond_features_extra: A list of 2D numpy array containing additional bond features to featurize the molecule.
+        :param atom_features_extra: A 2D numpy array containing additional atom features to featurize the molecule.
+        :param bond_features_extra: A 2D numpy array containing additional bond features to featurize the molecule.
         :param overwrite_default_atom_features: Boolean to overwrite default atom features by atom_features instead of concatenating.
         :param overwrite_default_bond_features: Boolean to overwrite default bond features by bond_features instead of concatenating.
+        :param shap: Boolean to indicate if the featurization is for SHAP analysis.
         """
         self.is_mol = is_mol(mol)
         self.is_reaction = is_reaction(self.is_mol)
@@ -357,9 +439,18 @@ class MolGraph:
         self.overwrite_default_atom_features = overwrite_default_atom_features
         self.overwrite_default_bond_features = overwrite_default_bond_features
 
+        # # mask extra atom/bond features for shap analysis (moved to mpn.py for batch processing)
+        # if shap:
+        #     if atom_features_extra is not None:
+        #         if extra_atom_keep_features is not None:
+        #             atom_features_extra = mask_features_extra(atom_features_extra, extra_atom_keep_features)
+        #     if bond_features_extra is not None:
+        #         if extra_bond_keep_features is not None:
+        #             bond_features_extra = mask_features_extra(bond_features_extra, extra_bond_keep_features)
+
         if not self.is_reaction:
             # Get atom features
-            self.f_atoms = [atom_features(atom) for atom in mol.GetAtoms()]
+            self.f_atoms = [atom_features(atom, keep_features=chemprop_atom_keep_features, shap=shap) for atom in mol.GetAtoms()]
             if atom_features_extra is not None:
                 if overwrite_default_atom_features:
                     self.f_atoms = [descs.tolist() for descs in atom_features_extra]
@@ -386,7 +477,7 @@ class MolGraph:
                     if bond is None:
                         continue
 
-                    f_bond = bond_features(bond)
+                    f_bond = bond_features(bond, keep_features=chemprop_bond_keep_features, shap=shap)
                     if bond_features_extra is not None:
                         descr = bond_features_extra[bond.GetIdx()].tolist()
                         if overwrite_default_bond_features:
@@ -414,6 +505,8 @@ class MolGraph:
                                  f'the extra bond features')
 
         else: # Reaction mode
+            if shap:
+                raise NotImplementedError('SHAP analysis is not yet supported for reactions')
             if atom_features_extra is not None:
                 raise NotImplementedError('Extra atom features are currently not supported for reactions')
             if bond_features_extra is not None:
@@ -509,8 +602,9 @@ class MolGraph:
                     self.b2a.append(a2)
                     self.b2revb.append(b2)
                     self.b2revb.append(b1)
-                    self.n_bonds += 2                
+                    self.n_bonds += 2       
 
+  
 class BatchMolGraph:
     """
     A :class:`BatchMolGraph` represents the graph structure and featurization of a batch of molecules.
@@ -661,7 +755,10 @@ def mol2graph(mols: Union[List[str], List[Chem.Mol], List[Tuple[Chem.Mol, Chem.M
               atom_features_batch: List[np.array] = (None,),
               bond_features_batch: List[np.array] = (None,),
               overwrite_default_atom_features: bool = False,
-              overwrite_default_bond_features: bool = False
+              overwrite_default_bond_features: bool = False,
+              shap: bool = False,
+              chemprop_atom_keep_features: List[bool] = None,
+              chemprop_bond_keep_features: List[bool] = None,
               ) -> BatchMolGraph:
     """
     Converts a list of SMILES or RDKit molecules to a :class:`BatchMolGraph` containing the batch of molecular graphs.
@@ -675,7 +772,10 @@ def mol2graph(mols: Union[List[str], List[Chem.Mol], List[Tuple[Chem.Mol, Chem.M
     """
     return BatchMolGraph([MolGraph(mol, af, bf,
                                    overwrite_default_atom_features=overwrite_default_atom_features,
-                                   overwrite_default_bond_features=overwrite_default_bond_features)
+                                   overwrite_default_bond_features=overwrite_default_bond_features,
+                                   shap=shap,
+                                   chemprop_atom_keep_features=chemprop_atom_keep_features,
+                                   chemprop_bond_keep_features=chemprop_bond_keep_features)
                           for mol, af, bf
                           in zip_longest(mols, atom_features_batch, bond_features_batch)])
 
@@ -691,3 +791,29 @@ def is_mol(mol: Union[str, Chem.Mol, Tuple[Chem.Mol, Chem.Mol]]) -> bool:
     elif isinstance(mol, Chem.Mol):
         return True
     return False
+
+# def mask_features_extra(features_extra: np.ndarray, keep_features: List[bool], feature_length: int = 50) -> np.ndarray:
+#     """
+#     Masks certain features in features_extra(atom/bond) based on the keep_features boolean vector.
+
+#     :param features_extra: A 2D numpy array with shape (num_atoms or num_bonds, feature_vector) where feature_vector is a multiple of feature_length.
+#     :param keep_features: A boolean vector indicating which features to keep.
+#     :return: A masked 2D numpy array with the same shape as features_extra.
+#     """
+#     _, feature_vector = features_extra.shape
+#     num_features = feature_vector // feature_length  # Each feature has length 50
+
+#     if len(keep_features) != num_features:
+#         raise ValueError("Length of keep_features does not match the number of features in features_extra.")
+
+#     # Create a mask to apply to features_extra
+#     mask = np.ones_like(features_extra)
+
+#     for i, keep in enumerate(keep_features):
+#         if not keep:
+#             mask[:, i*50:(i+1)*50] = 0
+
+#     # Apply the mask to features_extra
+#     masked_features = features_extra * mask
+
+#     return masked_features
