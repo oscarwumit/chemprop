@@ -501,8 +501,8 @@ class MolGraph:
                     self.n_bonds += 2
 
             if bond_features_extra is not None and len(bond_features_extra) != self.n_bonds / 2:
-                raise ValueError(f'The number of bonds in {Chem.MolToSmiles(mol)} is different from the length of '
-                                 f'the extra bond features')
+                raise ValueError(f'The number of bonds {self.n_bonds} in {Chem.MolToSmiles(mol)} is different from the length of '
+                                 f'the extra bond features {len(bond_features_extra)}')
 
         else: # Reaction mode
             if shap:

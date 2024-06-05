@@ -247,6 +247,14 @@ class MoleculeModel(nn.Module):
         bond_features_batch: List[np.ndarray] = None,
         constraints_batch: List[torch.Tensor] = None,
         bond_types_batch: List[torch.Tensor] = None,
+        shap: bool = False,
+        extra_keep_features_batch: List[List[bool]] = None,
+        extra_atom_keep_descriptors_batch: List[List[bool]] = None,
+        extra_bond_keep_descriptors_batch: List[List[bool]] = None,
+        extra_atom_keep_features_batch: List[List[bool]] = None,
+        extra_bond_keep_features_batch: List[List[bool]] = None,
+        chemprop_atom_keep_features: List[bool] = None,
+        chemprop_bond_keep_features: List[bool] = None,
     ) -> torch.Tensor:
         """
         Runs the :class:`MoleculeModel` on input.
@@ -272,6 +280,14 @@ class MoleculeModel(nn.Module):
                 atom_features_batch,
                 bond_descriptors_batch,
                 bond_features_batch,
+                shap,
+                extra_keep_features_batch,
+                extra_atom_keep_descriptors_batch,
+                extra_bond_keep_descriptors_batch,
+                extra_atom_keep_features_batch,
+                extra_bond_keep_features_batch,
+                chemprop_atom_keep_features,
+                chemprop_bond_keep_features,
             )
             output = self.readout(encodings, constraints_batch, bond_types_batch)
         else:
@@ -282,75 +298,85 @@ class MoleculeModel(nn.Module):
                 atom_features_batch,
                 bond_descriptors_batch,
                 bond_features_batch,
+                shap,
+                extra_keep_features_batch,
+                extra_atom_keep_descriptors_batch,
+                extra_bond_keep_descriptors_batch,
+                extra_atom_keep_features_batch,
+                extra_bond_keep_features_batch,
+                chemprop_atom_keep_features,
+                chemprop_bond_keep_features,
             )
             output = self.readout(encodings)
+            
+        # for shap, only for single target regression, return single scalar
 
-        # Don't apply sigmoid during training when using BCEWithLogitsLoss
-        if (
-            self.classification
-            and not (self.training and self.no_training_normalization)
-            and self.loss_function != "dirichlet"
-        ):
-            if self.is_atom_bond_targets:
-                output = [self.sigmoid(x) for x in output]
-            else:
-                output = self.sigmoid(output)
-        if self.multiclass:
-            output = output.reshape(
-                (output.shape[0], -1, self.num_classes)
-            )  # batch size x num targets x num classes per target
-            if (
-                not (self.training and self.no_training_normalization)
-                and self.loss_function != "dirichlet"
-            ):
-                output = self.multiclass_softmax(
-                    output
-                )  # to get probabilities during evaluation, but not during training when using CrossEntropyLoss
+        # # Don't apply sigmoid during training when using BCEWithLogitsLoss
+        # if (
+        #     self.classification
+        #     and not (self.training and self.no_training_normalization)
+        #     and self.loss_function != "dirichlet"
+        # ):
+        #     if self.is_atom_bond_targets:
+        #         output = [self.sigmoid(x) for x in output]
+        #     else:
+        #         output = self.sigmoid(output)
+        # if self.multiclass:
+        #     output = output.reshape(
+        #         (output.shape[0], -1, self.num_classes)
+        #     )  # batch size x num targets x num classes per target
+        #     if (
+        #         not (self.training and self.no_training_normalization)
+        #         and self.loss_function != "dirichlet"
+        #     ):
+        #         output = self.multiclass_softmax(
+        #             output
+        #         )  # to get probabilities during evaluation, but not during training when using CrossEntropyLoss
 
-        # Modify multi-input loss functions
-        if self.loss_function == "mve":
-            if self.is_atom_bond_targets:
-                outputs = []
-                for x in output:
-                    means, variances = torch.split(x, x.shape[1] // 2, dim=1)
-                    variances = self.softplus(variances)
-                    outputs.append(torch.cat([means, variances], axis=1))
-                return outputs
-            else:
-                means, variances = torch.split(output, output.shape[1] // 2, dim=1)
-                variances = self.softplus(variances)
-                output = torch.cat([means, variances], axis=1)
-        if self.loss_function == "evidential":
-            if self.is_atom_bond_targets:
-                outputs = []
-                for x in output:
-                    means, lambdas, alphas, betas = torch.split(
-                        x, x.shape[1] // 4, dim=1
-                    )
-                    lambdas = self.softplus(lambdas)  # + min_val
-                    alphas = (
-                        self.softplus(alphas) + 1
-                    )  # + min_val # add 1 for numerical contraints of Gamma function
-                    betas = self.softplus(betas)  # + min_val
-                    outputs.append(torch.cat([means, lambdas, alphas, betas], dim=1))
-                return outputs
-            else:
-                means, lambdas, alphas, betas = torch.split(
-                    output, output.shape[1] // 4, dim=1
-                )
-                lambdas = self.softplus(lambdas)  # + min_val
-                alphas = (
-                    self.softplus(alphas) + 1
-                )  # + min_val # add 1 for numerical contraints of Gamma function
-                betas = self.softplus(betas)  # + min_val
-                output = torch.cat([means, lambdas, alphas, betas], dim=1)
-        if self.loss_function == "dirichlet":
-            if self.is_atom_bond_targets:
-                outputs = []
-                for x in output:
-                    outputs.append(nn.functional.softplus(x) + 1)
-                return outputs
-            else:
-                output = nn.functional.softplus(output) + 1
+        # # Modify multi-input loss functions
+        # if self.loss_function == "mve":
+        #     if self.is_atom_bond_targets:
+        #         outputs = []
+        #         for x in output:
+        #             means, variances = torch.split(x, x.shape[1] // 2, dim=1)
+        #             variances = self.softplus(variances)
+        #             outputs.append(torch.cat([means, variances], axis=1))
+        #         return outputs
+        #     else:
+        #         means, variances = torch.split(output, output.shape[1] // 2, dim=1)
+        #         variances = self.softplus(variances)
+        #         output = torch.cat([means, variances], axis=1)
+        # if self.loss_function == "evidential":
+        #     if self.is_atom_bond_targets:
+        #         outputs = []
+        #         for x in output:
+        #             means, lambdas, alphas, betas = torch.split(
+        #                 x, x.shape[1] // 4, dim=1
+        #             )
+        #             lambdas = self.softplus(lambdas)  # + min_val
+        #             alphas = (
+        #                 self.softplus(alphas) + 1
+        #             )  # + min_val # add 1 for numerical contraints of Gamma function
+        #             betas = self.softplus(betas)  # + min_val
+        #             outputs.append(torch.cat([means, lambdas, alphas, betas], dim=1))
+        #         return outputs
+        #     else:
+        #         means, lambdas, alphas, betas = torch.split(
+        #             output, output.shape[1] // 4, dim=1
+        #         )
+        #         lambdas = self.softplus(lambdas)  # + min_val
+        #         alphas = (
+        #             self.softplus(alphas) + 1
+        #         )  # + min_val # add 1 for numerical contraints of Gamma function
+        #         betas = self.softplus(betas)  # + min_val
+        #         output = torch.cat([means, lambdas, alphas, betas], dim=1)
+        # if self.loss_function == "dirichlet":
+        #     if self.is_atom_bond_targets:
+        #         outputs = []
+        #         for x in output:
+        #             outputs.append(nn.functional.softplus(x) + 1)
+        #         return outputs
+        #     else:
+        #         output = nn.functional.softplus(output) + 1
 
         return output

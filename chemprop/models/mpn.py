@@ -327,7 +327,7 @@ class MPN(nn.Module):
         if self.use_input_features:
             if shap:
                 if extra_keep_features_batch is not None:
-                    features_batch = mask_features_extra_batch(features_batch, extra_keep_features_batch)
+                    features_batch = mask_features_extra_batch(features_batch, extra_keep_features_batch, feature_length=1)
 
             features_batch = torch.from_numpy(np.stack(features_batch)).float().to(self.device)
 
@@ -343,6 +343,7 @@ class MPN(nn.Module):
                 if extra_atom_keep_descriptors_batch is not None:
                     atom_descriptors_batch = mask_features_extra_batch(atom_descriptors_batch, extra_atom_keep_descriptors_batch)
                 if extra_bond_keep_descriptors_batch is not None:
+                    print(f"{extra_bond_keep_descriptors_batch} NOT NONE")
                     bond_descriptors_batch = mask_features_extra_batch(bond_descriptors_batch, extra_bond_keep_descriptors_batch)
 
             encodings = [enc(ba, atom_descriptors_batch, bond_descriptors_batch) for enc, ba in zip(self.encoder, batch)]
@@ -362,8 +363,11 @@ class MPN(nn.Module):
         if self.use_input_features:
             if len(features_batch.shape) == 1:
                 features_batch = features_batch.view(1, -1)
-
-            output = torch.cat([output, features_batch], dim=1)
+                
+            if len(features_batch.shape) == 3:
+                 features_batch = features_batch.squeeze(1)
+                 
+        output = torch.cat([output, features_batch], dim=1)
 
         return output
     
@@ -396,7 +400,7 @@ def mask_features_extra(features_extra: np.ndarray, keep_features: List[bool], f
 
     for i, keep in enumerate(keep_features):
         if not keep:
-            mask[:, i*50:(i+1)*50] = 0
+            mask[:, i*feature_length:(i+1)*feature_length] = 0
 
     # Apply the mask to features_extra
     masked_features = features_extra * mask
