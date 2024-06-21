@@ -181,6 +181,12 @@ def run_active_learning(args: ActiveLearningArgs):
     variable_experimental_size_factor = args.variable_experimental_size_factor
     max_training_size = args.max_training_size
 
+    if active_learning_steps is None and max_training_size is None:
+        raise ValueError('You need to specify either the number of active learning steps or the maximum training size.')
+    
+    if active_learning_steps is not None and max_training_size is not None:
+        raise ValueError('You need to specify either the number of active learning steps or the maximum training size, not both.')
+    
     if max_training_size is not None:
         df_training = pd.read_csv(args.data_path)
         size_training = len(df_training.index)
@@ -190,12 +196,6 @@ def run_active_learning(args: ActiveLearningArgs):
         else:
             active_learning_steps = int(np.log(max_training_size / size_training) / np.log(1 + data_selection_variable_amount))
         print(f'Active learning steps set to {active_learning_steps} to reach max training size of {max_training_size}.')
-
-    if active_learning_steps is None and max_training_size is None:
-        raise ValueError('You need to specify either the number of active learning steps or the maximum training size.')
-    
-    if active_learning_steps is not None and max_training_size is not None:
-        raise ValueError('You need to specify either the number of active learning steps or the maximum training size, not both.')
 
     if "on_the_fly_clustering" in data_selection_criterion:
         if args.use_pca_for_clustering:
