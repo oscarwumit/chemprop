@@ -179,7 +179,6 @@ def run_active_learning(args: ActiveLearningArgs):
     data_selection_variable_amount = args.data_selection_variable_amount
     fixed_experimental_size = args.fixed_experimental_size
     variable_experimental_size_factor = args.variable_experimental_size_factor
-    max_training_size = args.max_training_size
 
     if "on_the_fly_clustering" in data_selection_criterion:
         if args.use_pca_for_clustering:

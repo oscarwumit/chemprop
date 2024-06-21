@@ -1104,6 +1104,8 @@ class ActiveLearningArgs(TrainArgs):
     """Type of error to use in calibration"""
     """absolute: the abs difference between target and predictions"""
     """bias: the absolute difference between the absolute error and the square root of the ensemble variance"""
+    max_training_size: int = None
+    """Maximum training size to stop active learning"""
     def process_args(self) -> None:
         super(ActiveLearningArgs, self).process_args()
         if not 'calibration' in self.data_selection_criterion:
